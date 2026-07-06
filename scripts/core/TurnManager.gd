@@ -2,9 +2,14 @@ extends Node
 class_name TurnManager
 
 ## 1ターンの進行を担うステートマシン。
+## 出目を移動力として1マスずつ進み、止まったマスごとにアクションを解決する
+## （移動力を使い切るか、経路が尽きるか、帰還するまで繰り返す）。
 ## 人間プレイヤーの手番ではUIからの呼び出し(roll_dice/choose_direction/...)を待ち、
 ## CPUの手番では各ステートに入った直後にCPUAIの判断で自動的に同じ関数を呼ぶ。
 ## State machine that drives a single turn.
+## Uses the roll as movement points and advances one tile at a time, resolving an
+## action on each tile landed on (repeats until movement runs out, the path runs out,
+## or the player returns to the surface).
 ## On a human player's turn it waits for UI calls (roll_dice/choose_direction/...);
 ## on a CPU turn it calls those same functions itself right after entering each state,
 ## using CPUAI's decisions.
@@ -13,7 +18,7 @@ enum State {
 	IDLE,
 	WAITING_ROLL,
 	WAITING_DIRECTION,
-	WAITING_PATH,
+	WAITING_STEP,
 	WAITING_TILE_ACTION,
 	WAITING_EVENT_CHOICE,
 	GAME_OVER,
@@ -37,6 +42,7 @@ const MAX_ROUNDS := 15
 var state: State = State.IDLE
 
 var _movement: int = 0
+var _remaining_steps: int = 0
 var _forward: bool = true
 var _current_node: MapNodeDef
 var _pending_event: EventData
@@ -98,12 +104,29 @@ func choose_direction(forward: bool) -> void:
 	if state != State.WAITING_DIRECTION:
 		return
 	_forward = forward
+	_remaining_steps = _movement
+	_advance_one_step()
+
+
+## 現在地から1マスだけ先の候補（分岐先）を提示し、1つならCPU/自動で即決定、
+## 複数なら（人間なら盤面クリック、CPUならCPUAIで）選ばせる。候補が無い
+## （末端に到達）場合はそこで移動を打ち切ってターンを終える。
+## Presents the candidates exactly one tile ahead (branches). If there's only one,
+## it's chosen automatically; if there are several, the player picks (map click for
+## humans, CPUAI for CPU). If there are no candidates (a dead end was reached),
+## movement stops here and the turn ends.
+func _advance_one_step() -> void:
 	var player := GameManager.get_current_player()
 	var map_graph: MapGraph = GameManager.map_graph
-	var candidates: Array = map_graph.get_reachable(player.current_node_id, _movement, forward)
+	var candidates: Array = map_graph.get_forward_ids(player.current_node_id) if _forward else map_graph.get_backward_ids(player.current_node_id)
 
-	state = State.WAITING_PATH
-	path_choices_ready.emit(player, candidates, forward)
+	if candidates.is_empty():
+		state = State.WAITING_ROLL
+		_finish_turn(player)
+		return
+
+	state = State.WAITING_STEP
+	path_choices_ready.emit(player, candidates, _forward)
 
 	if candidates.size() == 1:
 		choose_path(candidates[0])
@@ -112,7 +135,7 @@ func choose_direction(forward: bool) -> void:
 
 
 func choose_path(node_id: int) -> void:
-	if state != State.WAITING_PATH:
+	if state != State.WAITING_STEP:
 		return
 	var player := GameManager.get_current_player()
 	var map_graph: MapGraph = GameManager.map_graph
@@ -125,6 +148,7 @@ func choose_path(node_id: int) -> void:
 		_resolve_return(player)
 		return
 
+	_remaining_steps -= 1
 	_current_node = map_graph.get_node(node_id)
 	_resolve_tile(player)
 
@@ -246,6 +270,9 @@ func _apply_effect(player: PlayerState, effect: EffectData) -> void:
 func _after_tile_resolved(player: PlayerState) -> void:
 	if _check_elimination(player):
 		_finish_turn(player)
+		return
+	if _remaining_steps > 0:
+		_advance_one_step()
 		return
 	state = State.WAITING_ROLL
 	_finish_turn(player)
