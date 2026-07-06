@@ -10,7 +10,7 @@ whatever you're still holding.
 The whole game is **data-driven**: maps, treasures, events, hazards and relics all live as individual
 files under `data/`, so new content can be added or tuned without touching any code.
 
-## Requirements & running
+## Requirements & running　💻
 
 - Godot **4.6.2** (`config/features` in `project.godot` pins `4.6` + Forward Plus; rendering method is
   set to `gl_compatibility`).
@@ -19,7 +19,7 @@ files under `data/`, so new content can be added or tuned without touching any c
   procedurally in `_ready()`, not laid out in the `.tscn`.
 - No build step, no external dependencies.
 
-## Project layout
+## Project layout📚
 
 ```
 deep_abiss/
@@ -60,7 +60,7 @@ deep_abiss/
       CPUAI.gd                 # heuristic bot: direction choice, tile actions, event choice
 ```
 
-## Rules / core loop
+## Rules / core loop　🔁
 
 Defaults: `HP = 3`, `Light = 5`, weight capacity `= 5`. All three can be modified by buffs.
 
@@ -100,7 +100,7 @@ picking up where a fresh dive begins (full Light, whatever they'd already banked
 
 Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
 
-## Architecture notes
+## Architecture notes　📒→📒
 
 - **`GameManager`** (autoload) owns the player list, current turn index, round number, the `MapGraph`
   and the `TreasureSpawner`. It has no turn logic itself — `advance_to_next_player()` just rotates to
@@ -129,7 +129,7 @@ Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
   actions are simple (always take relics, take treasure only if it fits, always ignore empty tiles,
   score event choices by hp/light/score deltas).
 
-## Authoring a map (`data/maps/*.txt`)
+## Authoring a map (`data/maps/*.txt`)　🌎
 
 Parsed by `MapTextLoader.gd`. A map file alternates **tile lines** and **connector lines**, starting
 and ending on a tile line, one depth per pair:
@@ -180,7 +180,7 @@ in that folder automatically. `GameManager.start_new_game(map_name)` looks it up
 extension); calling it with no argument (the normal game start) just grabs whichever map loaded first,
 so with more than one map file present you'll want to pass a name explicitly if you need a specific one.
 
-## Authoring content (`data/*/tierN/*.tres`)
+## Authoring content (`data/*/tierN/*.tres`)　💰　
 
 Every content type is a plain Godot `Resource` script (`class_name` + `@export` fields), so new items
 are just new `.tres` files created/edited from the Inspector — no code changes needed. The folder path
