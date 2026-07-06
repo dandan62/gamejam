@@ -49,16 +49,18 @@ func get_current_player() -> PlayerState:
 	return players[current_player_index]
 
 
-## 現在のプレイヤーから見て次にACTIVEなプレイヤーへ手番を移す。
-## 全員終了していれば null を返す。全ACTIVEプレイヤーが1巡したらround_numberを進める。
-## Advances the turn to the next ACTIVE player after the current one.
-## Returns null if everyone is finished. Advances round_number once all ACTIVE players
-## have had one turn each.
+## 現在のプレイヤーから見て次に脱落していないプレイヤー（ACTIVEまたはRETURNED）へ手番を移す。
+## 帰還済み(RETURNED)のプレイヤーも手番はスキップせず、以後も潜行を続けられる。
+## 全員脱落していれば null を返す。1巡したらround_numberを進める。
+## Advances the turn to the next non-eliminated player (ACTIVE or RETURNED) after the current one.
+## Players who have RETURNED still take their turn and keep diving -- only ELIMINATED
+## players are skipped. Returns null if everyone is eliminated. Advances round_number
+## once everyone has had one turn each.
 func advance_to_next_player() -> PlayerState:
 	for i in range(1, players.size() + 1):
 		var raw_next := current_player_index + i
 		var idx := raw_next % players.size()
-		if players[idx].status == PlayerState.Status.ACTIVE:
+		if players[idx].status != PlayerState.Status.ELIMINATED:
 			if raw_next >= players.size():
 				round_number += 1
 			current_player_index = idx
@@ -66,9 +68,11 @@ func advance_to_next_player() -> PlayerState:
 	return null
 
 
-func any_active_players() -> bool:
+## ゲームを続行できるプレイヤー（脱落していないプレイヤー）が1人でもいるか。
+## Whether any player who hasn't been eliminated remains (game can continue).
+func has_non_eliminated_players() -> bool:
 	for p in players:
-		if p.status == PlayerState.Status.ACTIVE:
+		if p.status != PlayerState.Status.ELIMINATED:
 			return true
 	return false
 

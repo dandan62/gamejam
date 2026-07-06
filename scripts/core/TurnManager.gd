@@ -60,6 +60,8 @@ func _start_turn(player: PlayerState) -> void:
 		state = State.GAME_OVER
 		game_over.emit(GameManager.get_ranking())
 		return
+	if player.status == PlayerState.Status.RETURNED:
+		player.status = PlayerState.Status.ACTIVE
 	_was_return = false
 	state = State.WAITING_ROLL
 	turn_started.emit(player)
@@ -285,7 +287,7 @@ func _finish_turn(player: PlayerState) -> void:
 
 	turn_ended.emit(player)
 
-	if not GameManager.any_active_players():
+	if not GameManager.has_non_eliminated_players():
 		state = State.GAME_OVER
 		game_over.emit(GameManager.get_ranking())
 		return

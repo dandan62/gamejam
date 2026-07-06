@@ -15,19 +15,23 @@ func _ready() -> void:
 
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(20, 20)
-	scroll.size = Vector2(700, 680)
+	scroll.size = Vector2(760, 900)
 	add_child(scroll)
 
 	board = Board.new()
-	board.custom_minimum_size = Vector2(500, 1900)
+	board.custom_minimum_size = Vector2(560, 1900)
 	board.setup(GameManager.map_graph)
 	board.node_clicked.connect(_on_board_node_clicked)
 	scroll.add_child(board)
 
+	var side_scroll := ScrollContainer.new()
+	side_scroll.position = Vector2(800, 20)
+	side_scroll.size = Vector2(780, 900)
+	add_child(side_scroll)
+
 	var side_panel := VBoxContainer.new()
-	side_panel.position = Vector2(740, 20)
-	side_panel.size = Vector2(520, 680)
-	add_child(side_panel)
+	side_panel.custom_minimum_size = Vector2(760, 0)
+	side_scroll.add_child(side_panel)
 
 	hud = HUD.new()
 	side_panel.add_child(hud)
@@ -46,8 +50,8 @@ func _ready() -> void:
 	event_popup.choice_made.connect(_on_event_choice)
 
 	game_over_screen = GameOverScreen.new()
-	game_over_screen.position = Vector2(300, 200)
-	game_over_screen.size = Vector2(600, 400)
+	game_over_screen.position = Vector2(350, 230)
+	game_over_screen.size = Vector2(900, 500)
 	add_child(game_over_screen)
 
 	round_label = Label.new()

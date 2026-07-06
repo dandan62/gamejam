@@ -6,3 +6,4 @@ res://scenes/Board.gd
 res://scenes/ui/HUD.gd
 res://scripts/data_models/TreasureData.gd
 res://scripts/entities/CPUAI.gd
+res://scripts/entities/PlayerState.gd
