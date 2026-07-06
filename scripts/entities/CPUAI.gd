@@ -3,26 +3,35 @@ class_name CPUAI
 
 ## 簡易ヒューリスティックAI。深い探索はせず、残ライトや所持お宝の量から
 ## 前進/後退を判断し、マスの内容に応じて目的地やイベント選択肢を選ぶ。
+## 方向はターン開始時ではなく1マスごとに判断し直す。
 ## Simple heuristic AI. Does no deep search; decides advance/retreat from remaining
 ## light and how much treasure is carried, and picks destinations/event choices by tile content.
+## Direction is re-evaluated every single tile rather than once per turn.
 
-static func choose_direction(player: PlayerState, map_graph: MapGraph) -> bool:
-	var can_forward := map_graph.has_forward(player.current_node_id)
-	var can_backward := map_graph.has_backward(player.current_node_id)
-	if can_forward and not can_backward:
+## その1マスで前進/後退のどちらを選ぶかを決め、選んだ側の中から目的地を選ぶ。
+## Decides forward vs. backward for this one tile, then picks a destination
+## among the candidates on the chosen side.
+static func choose_path(map_graph: MapGraph, player: PlayerState, forward_ids: Array, backward_ids: Array) -> int:
+	if _wants_retreat(player, forward_ids, backward_ids):
+		return backward_ids[0]
+	if not forward_ids.is_empty():
+		return _best_forward(map_graph, forward_ids)
+	return backward_ids[0]
+
+
+static func _wants_retreat(player: PlayerState, forward_ids: Array, backward_ids: Array) -> bool:
+	if backward_ids.is_empty():
+		return false
+	if forward_ids.is_empty():
 		return true
-	if can_backward and not can_forward:
-		return false
 	if player.light <= 2 and not player.carried_treasures.is_empty():
-		return false
+		return true
 	if player.carried_treasures.size() >= 3:
-		return false
-	return true
+		return true
+	return false
 
 
-static func choose_path(map_graph: MapGraph, candidates: Array) -> int:
-	if candidates.is_empty():
-		return -1
+static func _best_forward(map_graph: MapGraph, candidates: Array) -> int:
 	var best_id: int = candidates[0]
 	var best_score: int = -999
 	for node_id in candidates:

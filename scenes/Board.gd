@@ -10,7 +10,8 @@ signal node_clicked(node_id: int)
 
 var map_graph: MapGraph
 var node_positions: Dictionary = {}
-var highlighted_nodes: Array = []
+var highlighted_forward: Array = []
+var highlighted_backward: Array = []
 
 const NODE_RADIUS := 18.0
 const DEPTH_SPACING := 90.0
@@ -35,8 +36,12 @@ func _compute_positions() -> void:
 		node_positions[n.id] = Vector2(x, y)
 
 
-func set_highlighted(node_ids: Array) -> void:
-	highlighted_nodes = node_ids
+## forward_idsは奥へ進む候補、backward_idsは手前へ戻る候補。両方まとめてクリック可能にする。
+## forward_ids are candidates deeper in, backward_ids are candidates back toward the surface.
+## Both are clickable at once.
+func set_highlighted(forward_ids: Array, backward_ids: Array) -> void:
+	highlighted_forward = forward_ids
+	highlighted_backward = backward_ids
 	queue_redraw()
 
 
@@ -48,7 +53,7 @@ func _gui_input(event: InputEvent) -> void:
 	var mb: InputEventMouseButton = event
 	if not (mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT):
 		return
-	for node_id in highlighted_nodes:
+	for node_id in highlighted_forward + highlighted_backward:
 		if not node_positions.has(node_id):
 			continue
 		var pos: Vector2 = node_positions[node_id]
@@ -113,8 +118,10 @@ func _draw() -> void:
 		var n: MapNodeDef = node
 		var pos: Vector2 = node_positions[n.id]
 		var color := _tile_color(n)
-		if highlighted_nodes.has(n.id):
+		if highlighted_forward.has(n.id):
 			draw_circle(pos, NODE_RADIUS + 6, Color(1, 1, 1, 0.35))
+		elif highlighted_backward.has(n.id):
+			draw_circle(pos, NODE_RADIUS + 6, Color(0.3, 0.6, 1.0, 0.35))
 		draw_circle(pos, NODE_RADIUS, color)
 		draw_circle(pos, NODE_RADIUS, Color(0, 0, 0, 0.6), false, 2.0)
 

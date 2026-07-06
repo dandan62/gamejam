@@ -13,5 +13,6 @@ class_name TreasureData
 @export var max_value: int = 10
 @export var hp_damage: int = 0
 @export var weight: int = 1
+@export var icon: Texture2D = null
 @export var buffs: Array = []  # Array[BuffData] -- 手書き.tresでの扱いやすさのため型指定なし
 								# Array[BuffData] -- left untyped so it's easy to hand-write in .tres files

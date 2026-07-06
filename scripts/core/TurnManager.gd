@@ -4,20 +4,22 @@ class_name TurnManager
 ## 1ターンの進行を担うステートマシン。
 ## 出目を移動力として1マスずつ進み、止まったマスごとにアクションを解決する
 ## （移動力を使い切るか、経路が尽きるか、帰還するまで繰り返す）。
-## 人間プレイヤーの手番ではUIからの呼び出し(roll_dice/choose_direction/...)を待ち、
+## 進行方向はターン開始時に固定されず、1マスごとに前進/後退を選び直せる。
+## 人間プレイヤーの手番ではUIからの呼び出し(roll_dice/choose_path/...)を待ち、
 ## CPUの手番では各ステートに入った直後にCPUAIの判断で自動的に同じ関数を呼ぶ。
 ## State machine that drives a single turn.
 ## Uses the roll as movement points and advances one tile at a time, resolving an
 ## action on each tile landed on (repeats until movement runs out, the path runs out,
 ## or the player returns to the surface).
-## On a human player's turn it waits for UI calls (roll_dice/choose_direction/...);
+## Direction isn't locked in at the start of the turn -- forward/backward can be
+## re-chosen on every single tile.
+## On a human player's turn it waits for UI calls (roll_dice/choose_path/...);
 ## on a CPU turn it calls those same functions itself right after entering each state,
 ## using CPUAI's decisions.
 
 enum State {
 	IDLE,
 	WAITING_ROLL,
-	WAITING_DIRECTION,
 	WAITING_STEP,
 	WAITING_TILE_ACTION,
 	WAITING_EVENT_CHOICE,
@@ -26,8 +28,8 @@ enum State {
 
 signal turn_started(player: PlayerState)
 signal dice_rolled(player: PlayerState, dice: Dictionary, movement: int)
-signal direction_choice_needed(player: PlayerState, can_forward: bool, can_backward: bool)
-signal path_choices_ready(player: PlayerState, node_ids: Array, forward: bool)
+signal movement_changed(player: PlayerState, remaining: int, total: int)
+signal path_choices_ready(player: PlayerState, forward_ids: Array, backward_ids: Array)
 signal player_moved(player: PlayerState, node_id: int)
 signal player_returned(player: PlayerState, score_gained: int)
 signal tile_action_needed(player: PlayerState, node: MapNodeDef, context: Dictionary)
@@ -43,7 +45,6 @@ var state: State = State.IDLE
 
 var _movement: int = 0
 var _remaining_steps: int = 0
-var _forward: bool = true
 var _current_node: MapNodeDef
 var _pending_event: EventData
 var _was_return: bool = false
@@ -75,50 +76,34 @@ func roll_dice() -> void:
 	_movement = max(_movement, 0)
 	dice_rolled.emit(player, dice, _movement)
 
-	if _movement <= 0:
-		_finish_turn(player)
-		return
-
 	var map_graph: MapGraph = GameManager.map_graph
-	var can_forward := map_graph.has_forward(player.current_node_id)
-	var can_backward := map_graph.has_backward(player.current_node_id)
-
-	if not can_forward and not can_backward:
+	if _movement <= 0 or (not map_graph.has_forward(player.current_node_id) and not map_graph.has_backward(player.current_node_id)):
+		movement_changed.emit(player, 0, _movement)
 		_finish_turn(player)
 		return
 
-	state = State.WAITING_DIRECTION
-	if can_forward and not can_backward:
-		choose_direction(true)
-		return
-	if can_backward and not can_forward:
-		choose_direction(false)
-		return
-
-	direction_choice_needed.emit(player, can_forward, can_backward)
-	if player.is_cpu:
-		choose_direction(CPUAI.choose_direction(player, map_graph))
-
-
-func choose_direction(forward: bool) -> void:
-	if state != State.WAITING_DIRECTION:
-		return
-	_forward = forward
 	_remaining_steps = _movement
+	movement_changed.emit(player, _remaining_steps, _movement)
 	_advance_one_step()
 
 
-## 現在地から1マスだけ先の候補（分岐先）を提示し、1つならCPU/自動で即決定、
-## 複数なら（人間なら盤面クリック、CPUならCPUAIで）選ばせる。候補が無い
-## （末端に到達）場合はそこで移動を打ち切ってターンを終える。
-## Presents the candidates exactly one tile ahead (branches). If there's only one,
-## it's chosen automatically; if there are several, the player picks (map click for
-## humans, CPUAI for CPU). If there are no candidates (a dead end was reached),
-## movement stops here and the turn ends.
+## 現在地から1マスだけ先の候補を、前進・後退の両方向まとめて提示する。
+## 方向はターン開始時に固定するのではなく、1マス進むごとに毎回選び直せる
+## （前進候補と後退候補を合わせて1つならCPU/自動で即決定、複数なら
+## （人間なら盤面クリック、CPUならCPUAIで）選ばせる）。候補が無い
+## （前後とも末端）場合はそこで移動を打ち切ってターンを終える。
+## Presents the candidates exactly one tile ahead in both directions combined.
+## Direction is no longer locked in at the start of the turn -- it can be chosen
+## again on every single step (if there's only one candidate overall it's chosen
+## automatically; with several, the player picks -- map click for humans, CPUAI
+## for CPU). If there are no candidates in either direction, movement stops here
+## and the turn ends.
 func _advance_one_step() -> void:
 	var player := GameManager.get_current_player()
 	var map_graph: MapGraph = GameManager.map_graph
-	var candidates: Array = map_graph.get_forward_ids(player.current_node_id) if _forward else map_graph.get_backward_ids(player.current_node_id)
+	var forward_ids: Array = map_graph.get_forward_ids(player.current_node_id)
+	var backward_ids: Array = map_graph.get_backward_ids(player.current_node_id)
+	var candidates: Array = forward_ids + backward_ids
 
 	if candidates.is_empty():
 		state = State.WAITING_ROLL
@@ -126,12 +111,12 @@ func _advance_one_step() -> void:
 		return
 
 	state = State.WAITING_STEP
-	path_choices_ready.emit(player, candidates, _forward)
+	path_choices_ready.emit(player, forward_ids, backward_ids)
 
 	if candidates.size() == 1:
 		choose_path(candidates[0])
 	elif player.is_cpu:
-		choose_path(CPUAI.choose_path(map_graph, candidates))
+		choose_path(CPUAI.choose_path(map_graph, player, forward_ids, backward_ids))
 
 
 func choose_path(node_id: int) -> void:
@@ -139,16 +124,19 @@ func choose_path(node_id: int) -> void:
 		return
 	var player := GameManager.get_current_player()
 	var map_graph: MapGraph = GameManager.map_graph
+	var forward_ids: Array = map_graph.get_forward_ids(player.current_node_id)
+	var is_forward: bool = forward_ids.has(node_id)
 
 	player.current_node_id = node_id
 	player_moved.emit(player, node_id)
 
 	var start_node_id: int = map_graph.definition.start_node_id
-	if not _forward and node_id == start_node_id:
+	if not is_forward and node_id == start_node_id:
 		_resolve_return(player)
 		return
 
 	_remaining_steps -= 1
+	movement_changed.emit(player, _remaining_steps, _movement)
 	_current_node = map_graph.get_node(node_id)
 	_resolve_tile(player)
 

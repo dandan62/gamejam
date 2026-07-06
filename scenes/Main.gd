@@ -4,10 +4,10 @@ var turn_manager: TurnManager
 var board: Board
 var hud: HUD
 var dice_ui: DiceUI
-var direction_panel: DirectionPanel
 var action_panel: ActionPanel
 var event_popup: EventPopup
 var game_over_screen: GameOverScreen
+var round_label: Label
 
 
 func _ready() -> void:
@@ -37,10 +37,6 @@ func _ready() -> void:
 	side_panel.add_child(dice_ui)
 	dice_ui.roll_pressed.connect(_on_roll_pressed)
 
-	direction_panel = DirectionPanel.new()
-	side_panel.add_child(direction_panel)
-	direction_panel.direction_chosen.connect(_on_direction_chosen)
-
 	action_panel = ActionPanel.new()
 	side_panel.add_child(action_panel)
 	action_panel.action_chosen.connect(_on_action_chosen)
@@ -54,11 +50,18 @@ func _ready() -> void:
 	game_over_screen.size = Vector2(600, 400)
 	add_child(game_over_screen)
 
+	round_label = Label.new()
+	add_child(round_label)
+	round_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	round_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	round_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	round_label.position -= Vector2(20, 20)
+
 	turn_manager = TurnManager.new()
 	add_child(turn_manager)
 	turn_manager.turn_started.connect(_on_turn_started)
 	turn_manager.dice_rolled.connect(_on_dice_rolled)
-	turn_manager.direction_choice_needed.connect(_on_direction_choice_needed)
+	turn_manager.movement_changed.connect(_on_movement_changed)
 	turn_manager.path_choices_ready.connect(_on_path_choices_ready)
 	turn_manager.player_moved.connect(_on_player_moved)
 	turn_manager.player_returned.connect(_on_player_returned)
@@ -73,17 +76,18 @@ func _ready() -> void:
 
 func _refresh_all() -> void:
 	hud.refresh(GameManager.players)
+	round_label.text = "Round %d / %d" % [GameManager.round_number, TurnManager.MAX_ROUNDS]
 	board.queue_redraw()
 
 
 func _close_all_prompts() -> void:
-	direction_panel.close()
 	action_panel.close()
 	event_popup.close()
 
 
 func _on_turn_started(player: PlayerState) -> void:
 	dice_ui.set_enabled(not player.is_cpu)
+	hud.set_movement(player, 0, 0)
 	_close_all_prompts()
 	_refresh_all()
 
@@ -97,18 +101,13 @@ func _on_dice_rolled(_player: PlayerState, dice: Dictionary, movement: int) -> v
 	dice_ui.set_enabled(false)
 
 
-func _on_direction_choice_needed(player: PlayerState, can_forward: bool, can_backward: bool) -> void:
-	if not player.is_cpu:
-		direction_panel.prompt(can_forward, can_backward)
+func _on_movement_changed(player: PlayerState, remaining: int, total: int) -> void:
+	hud.set_movement(player, remaining, total)
+	_refresh_all()
 
 
-func _on_direction_chosen(forward: bool) -> void:
-	direction_panel.close()
-	turn_manager.choose_direction(forward)
-
-
-func _on_path_choices_ready(_player: PlayerState, node_ids: Array, _forward: bool) -> void:
-	board.set_highlighted(node_ids)
+func _on_path_choices_ready(_player: PlayerState, forward_ids: Array, backward_ids: Array) -> void:
+	board.set_highlighted(forward_ids, backward_ids)
 
 
 func _on_board_node_clicked(node_id: int) -> void:
@@ -116,7 +115,7 @@ func _on_board_node_clicked(node_id: int) -> void:
 
 
 func _on_player_moved(_player: PlayerState, _node_id: int) -> void:
-	board.set_highlighted([])
+	board.set_highlighted([], [])
 	_refresh_all()
 
 
