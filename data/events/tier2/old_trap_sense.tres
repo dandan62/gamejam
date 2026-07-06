@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="EventData" format=3 uid="uid://thvwi6sq34l8"]
+
+[ext_resource type="Script" uid="uid://c56gxjc6wem2c" path="res://scripts/data_models/EventData.gd" id="1"]
+[ext_resource type="Script" uid="uid://cegb2e7y7tyat" path="res://scripts/data_models/EffectData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+description = "You carefully checked your footing as you went"
+
+[sub_resource type="Resource" id="2"]
+script = ExtResource("2")
+description = "You dashed straight through and stumbled along the way, but found an unexpected item"
+hp_delta = -1
+score_delta = 5
+
+[resource]
+script = ExtResource("1")
+id = "old_trap_sense"
+tier = 2
+description = "This passage feels like it holds an old trap. How do you proceed?"
+choice_a_text = "Proceed carefully"
+choice_a_effect = SubResource("1")
+choice_b_text = "Dash straight through (HP-1, Score+5)"
+choice_b_effect = SubResource("2")

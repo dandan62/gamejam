@@ -1,0 +1,21 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/TreasureData.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data_models/BuffData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+stat = 1
+amount = -1
+duration = 0
+
+[resource]
+script = ExtResource("1")
+id = "phantom_coin_stack"
+display_name = "Phantom Coin Stack"
+tier = 6
+min_value = 45
+max_value = 68
+hp_damage = 2
+weight = 2
+buffs = [SubResource("1")]

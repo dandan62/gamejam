@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TreasureData" format=3 uid="uid://dya1apexkyf"]
+
+[ext_resource type="Script" uid="uid://jku5b4va0dhp" path="res://scripts/data_models/TreasureData.gd" id="1"]
+[ext_resource type="Script" uid="uid://blqaphj0b8l4p" path="res://scripts/data_models/BuffData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+amount = 1
+duration = 1
+
+[resource]
+script = ExtResource("1")
+id = "rusty_dagger"
+display_name = "Rusty Dagger"
+max_value = 4
+buffs = [SubResource("1")]

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/TreasureData.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data_models/BuffData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+stat = 0
+amount = 2
+duration = 1
+
+[resource]
+script = ExtResource("1")
+id = "abyssal_crown"
+display_name = "Abyssal Crown"
+tier = 7
+min_value = 80
+max_value = 120
+hp_damage = 4
+weight = 5
+buffs = [SubResource("1")]

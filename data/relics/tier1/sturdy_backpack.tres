@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RelicData" format=3 uid="uid://cq7vopktovwa5"]
+
+[ext_resource type="Script" uid="uid://blwe5een8o832" path="res://scripts/data_models/RelicData.gd" id="1"]
+[ext_resource type="Script" uid="uid://blqaphj0b8l4p" path="res://scripts/data_models/BuffData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+stat = 1
+amount = 2
+
+[resource]
+script = ExtResource("1")
+id = "sturdy_backpack"
+display_name = "Sturdy Backpack"
+tier = 1
+description = "Permanently increases weight capacity by +2"
+buffs = [SubResource("1")]

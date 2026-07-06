@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EventData" format=3 uid="uid://dag5mgtp78m8b"]
+
+[ext_resource type="Script" uid="uid://c56gxjc6wem2c" path="res://scripts/data_models/EventData.gd" id="1"]
+[ext_resource type="Script" uid="uid://cegb2e7y7tyat" path="res://scripts/data_models/EffectData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+description = "You took the shortcut, burning extra light, but found a bit of loot"
+light_delta = -1
+score_delta = 3
+
+[sub_resource type="Resource" id="2"]
+script = ExtResource("2")
+description = "You chose the safe path"
+
+[resource]
+script = ExtResource("1")
+description = "You find a narrow gap with cold air blowing through. Take the shortcut?"
+choice_a_text = "Take the shortcut (Light-1, Score+3)"
+choice_a_effect = SubResource("1")
+choice_b_text = "Turn back to the safe path"
+choice_b_effect = SubResource("2")

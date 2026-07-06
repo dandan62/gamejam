@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/TreasureData.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ancient_crown"
+display_name = "Ancient Crown"
+tier = 3
+min_value = 18
+max_value = 30
+hp_damage = 2
+weight = 3
+buffs = []
