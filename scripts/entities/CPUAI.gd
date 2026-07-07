@@ -64,10 +64,6 @@ static func choose_relic_action() -> String:
 	return "pick_up"
 
 
-static func choose_empty_action() -> String:
-	return "ignore"
-
-
 static func choose_event(event: EventData) -> String:
 	var score_a := _score_effect(event.choice_a_effect)
 	var score_b := _score_effect(event.choice_b_effect)
