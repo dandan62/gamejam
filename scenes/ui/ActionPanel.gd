@@ -1,7 +1,7 @@
 extends PanelContainer
 class_name ActionPanel
 
-signal action_chosen(action: String, extra: Dictionary)
+signal action_chosen(action: String)
 
 var vbox: VBoxContainer
 
@@ -17,7 +17,7 @@ func _clear() -> void:
 		child.queue_free()
 
 
-func prompt(player: PlayerState, node: MapNodeDef, context: Dictionary) -> void:
+func prompt(context: Dictionary) -> void:
 	_clear()
 	var info := Label.new()
 
@@ -31,7 +31,7 @@ func prompt(player: PlayerState, node: MapNodeDef, context: Dictionary) -> void:
 			var pick_btn := Button.new()
 			pick_btn.text = "Pick Up"
 			pick_btn.disabled = not context.get("can_pick_up", false)
-			pick_btn.pressed.connect(func(): action_chosen.emit("pick_up", {}))
+			pick_btn.pressed.connect(func(): action_chosen.emit("pick_up"))
 			vbox.add_child(pick_btn)
 			_add_ignore_button()
 		"relic":
@@ -40,21 +40,8 @@ func prompt(player: PlayerState, node: MapNodeDef, context: Dictionary) -> void:
 			vbox.add_child(info)
 			var pick_btn := Button.new()
 			pick_btn.text = "Pick Up"
-			pick_btn.pressed.connect(func(): action_chosen.emit("pick_up", {}))
+			pick_btn.pressed.connect(func(): action_chosen.emit("pick_up"))
 			vbox.add_child(pick_btn)
-			_add_ignore_button()
-		"empty":
-			info.text = "Nothing here"
-			vbox.add_child(info)
-			if context.get("can_discard", false):
-				for i in range(player.carried_treasures.size()):
-					var entry: Dictionary = player.carried_treasures[i]
-					var t: TreasureData = entry["data"]
-					var btn := Button.new()
-					btn.text = "Discard %s" % t.display_name
-					var idx := i
-					btn.pressed.connect(func(): action_chosen.emit("discard", {"index": idx}))
-					vbox.add_child(btn)
 			_add_ignore_button()
 	show()
 
@@ -62,7 +49,7 @@ func prompt(player: PlayerState, node: MapNodeDef, context: Dictionary) -> void:
 func _add_ignore_button() -> void:
 	var ignore_btn := Button.new()
 	ignore_btn.text = "Ignore"
-	ignore_btn.pressed.connect(func(): action_chosen.emit("ignore", {}))
+	ignore_btn.pressed.connect(func(): action_chosen.emit("ignore"))
 	vbox.add_child(ignore_btn)
 
 

@@ -79,11 +79,6 @@ func pick_up_treasure(data: TreasureData, value: int) -> void:
 	add_permanent_buffs_from(data.buffs)
 
 
-func drop_treasure(index: int) -> void:
-	if index >= 0 and index < carried_treasures.size():
-		carried_treasures.remove_at(index)
-
-
 func lose_all_carried_treasures() -> void:
 	carried_treasures.clear()
 

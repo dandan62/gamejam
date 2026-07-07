@@ -100,8 +100,8 @@ func _on_roll_pressed() -> void:
 	turn_manager.roll_dice()
 
 
-func _on_dice_rolled(_player: PlayerState, dice: Dictionary, movement: int) -> void:
-	dice_ui.show_result(dice, movement)
+func _on_dice_rolled(_player: PlayerState, die: int, backpack_space: int, movement: int) -> void:
+	dice_ui.show_result(die, backpack_space, movement)
 	dice_ui.set_enabled(false)
 
 
@@ -127,14 +127,14 @@ func _on_player_returned(_player: PlayerState, _score_gained: int) -> void:
 	_refresh_all()
 
 
-func _on_tile_action_needed(player: PlayerState, node: MapNodeDef, context: Dictionary) -> void:
+func _on_tile_action_needed(player: PlayerState, _node: MapNodeDef, context: Dictionary) -> void:
 	if not player.is_cpu:
-		action_panel.prompt(player, node, context)
+		action_panel.prompt(context)
 
 
-func _on_action_chosen(action: String, extra: Dictionary) -> void:
+func _on_action_chosen(action: String) -> void:
 	action_panel.close()
-	turn_manager.choose_tile_action(action, extra)
+	turn_manager.choose_tile_action(action)
 
 
 func _on_event_choice_needed(player: PlayerState, event: EventData) -> void:

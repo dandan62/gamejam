@@ -27,7 +27,7 @@ enum State {
 }
 
 signal turn_started(player: PlayerState)
-signal dice_rolled(player: PlayerState, dice: Dictionary, movement: int)
+signal dice_rolled(player: PlayerState, die: int, backpack_space: int, movement: int)
 signal movement_changed(player: PlayerState, remaining: int, total: int)
 signal path_choices_ready(player: PlayerState, forward_ids: Array, backward_ids: Array)
 signal player_moved(player: PlayerState, node_id: int)
@@ -39,7 +39,7 @@ signal player_eliminated(player: PlayerState)
 signal turn_ended(player: PlayerState)
 signal game_over(ranking: Array)
 
-const MAX_ROUNDS := 15
+const MAX_ROUNDS := 8
 
 var state: State = State.IDLE
 
@@ -73,10 +73,11 @@ func roll_dice() -> void:
 	if state != State.WAITING_ROLL:
 		return
 	var player := GameManager.get_current_player()
-	var dice := DiceRoller.roll_2d6()
-	_movement = dice["total"] + player.get_stat_bonus(BuffData.Stat.MOVE)
+	var die := DiceRoller.roll_1d6()
+	var backpack_space := player.get_weight_capacity() - player.get_total_weight()
+	_movement = die + backpack_space + player.get_stat_bonus(BuffData.Stat.MOVE)
 	_movement = max(_movement, 0)
-	dice_rolled.emit(player, dice, _movement)
+	dice_rolled.emit(player, die, backpack_space, _movement)
 
 	var map_graph: MapGraph = GameManager.map_graph
 	if _movement <= 0 or (not map_graph.has_forward(player.current_node_id) and not map_graph.has_backward(player.current_node_id)):
@@ -164,7 +165,7 @@ func _resolve_tile(player: PlayerState) -> void:
 				if player.is_cpu:
 					choose_tile_action(CPUAI.choose_treasure_action(player, data))
 			else:
-				_resolve_empty(player)
+				_after_tile_resolved(player)
 		MapNodeDef.TileType.RELIC:
 			if GameManager.spawner.has_available_relic(node.id):
 				state = State.WAITING_TILE_ACTION
@@ -195,21 +196,11 @@ func _resolve_tile(player: PlayerState) -> void:
 				effect_applied.emit(player, hazard.description)
 			_after_tile_resolved(player)
 		_:
-			_resolve_empty(player)
+			_after_tile_resolved(player)
 
 
-func _resolve_empty(player: PlayerState) -> void:
-	state = State.WAITING_TILE_ACTION
-	tile_action_needed.emit(player, _current_node, {"kind": "empty", "can_discard": not player.carried_treasures.is_empty()})
-	if player.is_cpu:
-		choose_tile_action(CPUAI.choose_empty_action())
-
-
-## action: "pick_up" | "ignore" | "discard"
-## extra: discardの場合 {"index": int}
-## action: "pick_up" | "ignore" | "discard"
-## extra: {"index": int} when action is "discard"
-func choose_tile_action(action: String, extra: Dictionary = {}) -> void:
+## action: "pick_up" | "ignore"
+func choose_tile_action(action: String) -> void:
 	if state != State.WAITING_TILE_ACTION:
 		return
 	var player := GameManager.get_current_player()
@@ -224,9 +215,6 @@ func choose_tile_action(action: String, extra: Dictionary = {}) -> void:
 		elif node.tile_type == MapNodeDef.TileType.RELIC:
 			var relic: RelicData = GameManager.spawner.take_relic(node.id)
 			player.add_relic_buffs(relic.buffs)
-	elif action == "discard":
-		if extra.has("index"):
-			player.drop_treasure(int(extra["index"]))
 
 	_after_tile_resolved(player)
 

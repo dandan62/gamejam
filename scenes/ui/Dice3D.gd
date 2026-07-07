@@ -1,12 +1,12 @@
 extends SubViewportContainer
 class_name Dice3D
 
-## 2D6を3D表示でトス演出するミニビューポート。
-## 各ダイスは立方体+6面それぞれにLabel3D(1〜6、対面の和が7になる標準配置)を
+## 1D6を3D表示でトス演出するミニビューポート。
+## ダイスは立方体+6面それぞれにLabel3D(1〜6、対面の和が7になる標準配置)を
 ## 子ノードとして持たせ、出目に応じた面が正面(+Z、カメラ側)を向く回転へ
 ## ランダムな余分回転を足してTweenで一気に回す。
-## Mini viewport that shows a 3D toss animation for a 2D6 roll.
-## Each die is a cube with a Label3D (1-6, standard layout where opposite faces sum to 7)
+## Mini viewport that shows a 3D toss animation for a 1D6 roll.
+## The die is a cube with a Label3D (1-6, standard layout where opposite faces sum to 7)
 ## as a child on each of its 6 faces. It's spun with a Tween toward the rotation that puts
 ## the rolled face forward (+Z, toward the camera), plus extra random spins for flourish.
 
@@ -21,17 +21,16 @@ const FACE_ROTATIONS := {
 	6: Vector3(0, 180, 0),
 }
 
-var _die_a: Node3D
-var _die_b: Node3D
+var _die: Node3D
 var _tweens_running := 0
 
 
 func _ready() -> void:
 	stretch = true
-	custom_minimum_size = Vector2(220, 140)
+	custom_minimum_size = Vector2(140, 140)
 
 	var viewport := SubViewport.new()
-	viewport.size = Vector2i(440, 280)
+	viewport.size = Vector2i(280, 280)
 	viewport.transparent_bg = true
 	viewport.own_world_3d = true
 	add_child(viewport)
@@ -45,13 +44,8 @@ func _ready() -> void:
 	light.rotation_degrees = Vector3(-50, -30, 0)
 	viewport.add_child(light)
 
-	_die_a = _build_die()
-	_die_a.position = Vector3(-0.8, 0, 0)
-	viewport.add_child(_die_a)
-
-	_die_b = _build_die()
-	_die_b.position = Vector3(0.8, 0, 0)
-	viewport.add_child(_die_b)
+	_die = _build_die()
+	viewport.add_child(_die)
 
 
 func _build_die() -> Node3D:
@@ -88,10 +82,9 @@ func _build_die() -> Node3D:
 	return root
 
 
-func roll(d1: int, d2: int) -> void:
+func roll(value: int) -> void:
 	_tweens_running = 0
-	_animate_die(_die_a, d1)
-	_animate_die(_die_b, d2)
+	_animate_die(_die, value)
 
 
 func _animate_die(die: Node3D, value: int) -> void:
