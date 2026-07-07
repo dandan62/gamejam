@@ -10,7 +10,7 @@ whatever you're still holding.
 The whole game is **data-driven**: maps, treasures, events, hazards and relics all live as individual
 files under `data/`, so new content can be added or tuned without touching any code.
 
-## Requirements & running
+## Requirements & running　💻
 
 - Godot **4.6.2** (`config/features` in `project.godot` pins `4.6` + Forward Plus; rendering method is
   set to `gl_compatibility`).
@@ -19,7 +19,7 @@ files under `data/`, so new content can be added or tuned without touching any c
   procedurally in `_ready()`, not laid out in the `.tscn`.
 - No build step, no external dependencies.
 
-## Project layout
+## Project layout📚
 
 ```
 deep_abiss/
@@ -45,7 +45,7 @@ deep_abiss/
       DataLoader.gd            # singleton: loads everything under data/ into lookup caches
     core/
       TurnManager.gd           # the turn state machine (see below)
-      DiceRoller.gd            # 1d6 roll
+      DiceRoller.gd            # 2d6 roll
       TierSelector.gd          # depth -> tier weighted random pick
       TreasureSpawner.gd       # rolls treasure/relic contents once per game, per tile
     map/
@@ -60,23 +60,20 @@ deep_abiss/
       CPUAI.gd                 # heuristic bot: direction choice, tile actions, event choice
 ```
 
-## Rules / core loop
+## Rules / core loop　🔁
 
 Defaults: `HP = 3`, `Light = 5`, weight capacity `= 5`. All three can be modified by buffs.
 
 A turn (`TurnManager.gd`) goes:
 
-1. **Roll** — 1d6 + your current empty backpack space (`weight capacity - carried weight`) + any
-   `MOVE` buff bonus = movement points for this turn. Carrying more treasure directly shrinks your
-   next roll's movement.
+1. **Roll** — 2d6 + any `MOVE` buff bonus = movement points for this turn.
 2. **Step** — move one tile at a time until movement points run out or there's nowhere left to go.
    At **every single tile**, the game offers both the forward (deeper) and backward (toward the
    surface) neighbors as candidates together — direction is **not** locked in for the whole turn, it's
    re-chosen at each step. Humans click a highlighted node on the board (forward = white glow,
    backward = blue glow); CPU decides via `CPUAI.choose_path()`.
 3. **Resolve the tile** you land on:
-   - `EMPTY` — nothing happens; it resolves immediately with no prompt (for either humans or the CPU),
-     so it doesn't interrupt the pace of a turn.
+   - `EMPTY` — ignore, or discard one carried treasure.
    - `TREASURE` — pick up (only if it fits under your weight capacity) or ignore. Picking up applies
      the treasure's HP damage and any `WHILE_HELD`/`PERMANENT` buffs immediately.
    - `EVENT` — a 2-choice prompt; each choice applies an `EffectData`.
@@ -97,13 +94,13 @@ picking up where a fresh dive begins (full Light, whatever they'd already banked
 `ELIMINATED` players are skipped.
 
 **Game over** happens when either:
-- the round limit (`TurnManager.MAX_ROUNDS = 8`) is exceeded — anyone still `ACTIVE` (mid-dive) is
+- the round limit (`TurnManager.MAX_ROUNDS = 15`) is exceeded — anyone still `ACTIVE` (mid-dive) is
   force-eliminated (loses unreturned treasure) so the game can end cleanly, or
 - every player has been `ELIMINATED`.
 
 Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
 
-## Architecture notes
+## Architecture notes　📒→📒
 
 - **`GameManager`** (autoload) owns the player list, current turn index, round number, the `MapGraph`
   and the `TreasureSpawner`. It has no turn logic itself — `advance_to_next_player()` just rotates to
@@ -129,10 +126,10 @@ Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
 - **`CPUAI`** is a stateless heuristic: it retreats if there's nowhere to go forward, if Light is low
   (`<= 2`) while carrying anything, or once it's carrying 3+ treasures; otherwise it advances toward
   whichever forward candidate looks best (`TREASURE` > `RELIC` > `EVENT` > `EMPTY` > `HAZARD`). Tile
-  actions are simple (always take relics, take treasure only if it fits, score event choices by
-  hp/light/score deltas; empty tiles have no choice to make, so there's nothing for the CPU to decide).
+  actions are simple (always take relics, take treasure only if it fits, always ignore empty tiles,
+  score event choices by hp/light/score deltas).
 
-## Authoring a map (`data/maps/*.txt`)
+## Authoring a map (`data/maps/*.txt`)　🌎
 
 Parsed by `MapTextLoader.gd`. A map file alternates **tile lines** and **connector lines**, starting
 and ending on a tile line, one depth per pair:
@@ -183,7 +180,7 @@ in that folder automatically. `GameManager.start_new_game(map_name)` looks it up
 extension); calling it with no argument (the normal game start) just grabs whichever map loaded first,
 so with more than one map file present you'll want to pass a name explicitly if you need a specific one.
 
-## Authoring content (`data/*/tierN/*.tres`)
+## Authoring content (`data/*/tierN/*.tres`)　💰　
 
 Every content type is a plain Godot `Resource` script (`class_name` + `@export` fields), so new items
 are just new `.tres` files created/edited from the Inspector — no code changes needed. The folder path
