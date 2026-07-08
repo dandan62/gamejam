@@ -63,6 +63,11 @@ func _start_turn(player: PlayerState) -> void:
 	if player.status == PlayerState.Status.RETURNED:
 		player.status = PlayerState.Status.ACTIVE
 	_was_return = false
+
+	# ADD THESE TWO LINES
+	var visible_ids := GameManager.map_graph.get_visible_node_ids(player.current_node_id, player.lamp_level)
+	GameManager.board.set_visible_nodes(visible_ids)
+
 	state = State.WAITING_ROLL
 	turn_started.emit(player)
 	if player.is_cpu:
@@ -103,6 +108,8 @@ func roll_dice() -> void:
 ## and the turn ends.
 func _advance_one_step() -> void:
 	var player := GameManager.get_current_player()
+	var visible_ids := GameManager.map_graph.get_visible_node_ids(player.current_node_id, player.lamp_level)
+	GameManager.board.set_visible_nodes(visible_ids)
 	var map_graph: MapGraph = GameManager.map_graph
 	var forward_ids: Array = map_graph.get_forward_ids(player.current_node_id)
 	var backward_ids: Array = map_graph.get_backward_ids(player.current_node_id)
@@ -269,7 +276,7 @@ func _check_elimination(player: PlayerState) -> bool:
 
 func _finish_turn(player: PlayerState) -> void:
 	if not _was_return and player.status == PlayerState.Status.ACTIVE:
-		var light_cost: int = max(1 - player.get_stat_bonus(BuffData.Stat.LIGHT), 0)
+		var light_cost: int = max(player.lamp_level - player.get_stat_bonus(BuffData.Stat.LIGHT), 0)
 		player.light = max(player.light - light_cost, 0)
 		_check_elimination(player)
 

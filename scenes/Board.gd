@@ -13,6 +13,8 @@ var node_positions: Dictionary = {}
 var highlighted_forward: Array = []
 var highlighted_backward: Array = []
 
+var visible_node_ids: Array = []  # node IDs the current player can see
+
 const NODE_RADIUS := 18.0
 const DEPTH_SPACING := 90.0
 const LANE_SPACING := 90.0
@@ -43,7 +45,11 @@ func set_highlighted(forward_ids: Array, backward_ids: Array) -> void:
 	highlighted_forward = forward_ids
 	highlighted_backward = backward_ids
 	queue_redraw()
-
+	
+	
+func set_visible_nodes(ids: Array) -> void:
+	visible_node_ids = ids
+	queue_redraw()
 
 ## ハイライト中のノードをクリックしたら node_clicked を発火する。
 ## Emits node_clicked when a currently-highlighted node is clicked.
@@ -117,7 +123,8 @@ func _draw() -> void:
 	for node in map_graph.get_all_nodes():
 		var n: MapNodeDef = node
 		var pos: Vector2 = node_positions[n.id]
-		var color := _tile_color(n)
+		var is_visible: bool = visible_node_ids.is_empty() or visible_node_ids.has(n.id)
+		var color := _tile_color(n) if is_visible else Color(0.15, 0.15, 0.18)
 		if highlighted_forward.has(n.id):
 			draw_circle(pos, NODE_RADIUS + 6, Color(1, 1, 1, 0.35))
 		elif highlighted_backward.has(n.id):

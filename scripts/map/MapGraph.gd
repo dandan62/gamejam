@@ -47,3 +47,23 @@ func has_forward(node_id: int) -> bool:
 
 func has_backward(node_id: int) -> bool:
 	return not get_backward_ids(node_id).is_empty()
+
+## Returns all node IDs visible from `from_node_id` within `radius` hops
+## in both forward and backward directions.
+func get_visible_node_ids(from_node_id: int, radius: int) -> Array:
+	var visited: Dictionary = {}
+	var queue: Array = [[from_node_id, 0]]  # [node_id, depth]
+	while not queue.is_empty():
+		var pair = queue.pop_front()
+		var nid: int = pair[0]
+		var depth: int = pair[1]
+		if visited.has(nid):
+			continue
+		visited[nid] = true
+		if depth >= radius:
+			continue
+		for fwd in get_forward_ids(nid):
+			queue.append([fwd, depth + 1])
+		for bwd in get_backward_ids(nid):
+			queue.append([bwd, depth + 1])
+	return visited.keys()

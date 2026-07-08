@@ -13,6 +13,9 @@ var light: int = 5
 var max_light: int = 5
 var weight_capacity_base: int = 5
 
+
+var lamp_level: int = 1  # 1 = see 1 tile ahead/behind, 2 = see 2 tiles ahead/behind
+
 var current_node_id: int = 0
 var status: Status = Status.ACTIVE
 

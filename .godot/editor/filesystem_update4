@@ -1,9 +1,8 @@
-res://scenes/Main.gd
-res://scripts/autoload/GameManager.gd
-res://scripts/core/TurnManager.gd
+res://scenes/Main.tscn
+res://scripts/entities/PlayerState.gd
 res://scripts/map/MapGraph.gd
 res://scenes/Board.gd
+res://scripts/core/TurnManager.gd
+res://scripts/autoload/GameManager.gd
+res://scenes/Main.gd
 res://scenes/ui/HUD.gd
-res://scripts/data_models/TreasureData.gd
-res://scripts/entities/CPUAI.gd
-res://scripts/entities/PlayerState.gd

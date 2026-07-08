@@ -56,10 +56,27 @@ func setup(players: Array) -> void:
 		light_tag.custom_minimum_size = Vector2(50, 0)
 		light_row.add_child(light_tag)
 		var light_gauge := SegmentGauge.new()
+		
 		light_gauge.filled_color = Color(0.3, 0.8, 0.4)
 		light_row.add_child(light_gauge)
 		_light_gauges.append(light_gauge)
-
+		
+		var lamp_row := HBoxContainer.new()
+		col.add_child(lamp_row)
+		var lamp_label := Label.new()
+		lamp_label.text = "Lamp: 1"
+		lamp_label.custom_minimum_size = Vector2(80, 0)
+		lamp_row.add_child(lamp_label)
+		var lamp_btn := Button.new()
+		lamp_btn.text = "Toggle (1/2)"
+		var captured_player: PlayerState = _p  # capture the loop variable
+		var captured_label: Label = lamp_label
+		lamp_btn.pressed.connect(func():
+			captured_player.lamp_level = 2 if captured_player.lamp_level == 1 else 1
+			captured_label.text = "Lamp: %d" % captured_player.lamp_level
+		)
+		lamp_row.add_child(lamp_btn)
+		
 		var action_row := HBoxContainer.new()
 		col.add_child(action_row)
 		var action_tag := Label.new()

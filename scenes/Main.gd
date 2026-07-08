@@ -10,6 +10,7 @@ var game_over_screen: GameOverScreen
 var round_label: Label
 
 
+
 func _ready() -> void:
 	GameManager.start_new_game()
 
@@ -19,6 +20,7 @@ func _ready() -> void:
 	add_child(scroll)
 
 	board = Board.new()
+	GameManager.board = board
 	board.custom_minimum_size = Vector2(560, 1900)
 	board.setup(GameManager.map_graph)
 	board.node_clicked.connect(_on_board_node_clicked)
