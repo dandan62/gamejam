@@ -13,6 +13,7 @@ var spawner: TreasureSpawner
 var current_player_index: int = 0
 var round_number: int = 1
 var board: Board = null
+var hud = null  
 
 func start_new_game(map_name: String = "") -> void:
 	players.clear()

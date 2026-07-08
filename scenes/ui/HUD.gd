@@ -15,6 +15,9 @@ var _action_gauges: Array = []      # Array[SegmentGauge]
 var _detail_labels: Array = []      # Array[Label]
 var _treasure_rows: Array = []      # Array[HBoxContainer]
 
+var _lamp_sliders: Array = []
+var _lamp_labels: Array = []
+
 var _movement_by_player: Dictionary = {}  # player.id -> {"remaining": int, "total": int}
 
 
@@ -63,19 +66,29 @@ func setup(players: Array) -> void:
 		
 		var lamp_row := HBoxContainer.new()
 		col.add_child(lamp_row)
-		var lamp_label := Label.new()
-		lamp_label.text = "Lamp: 1"
-		lamp_label.custom_minimum_size = Vector2(80, 0)
-		lamp_row.add_child(lamp_label)
-		var lamp_btn := Button.new()
-		lamp_btn.text = "Toggle (1/2)"
-		var captured_player: PlayerState = _p  # capture the loop variable
-		var captured_label: Label = lamp_label
-		lamp_btn.pressed.connect(func():
-			captured_player.lamp_level = 2 if captured_player.lamp_level == 1 else 1
-			captured_label.text = "Lamp: %d" % captured_player.lamp_level
+		var lamp_tag := Label.new()
+		lamp_tag.text = "Lamp"
+		lamp_tag.custom_minimum_size = Vector2(50, 0)
+		lamp_row.add_child(lamp_tag)
+		var lamp_slider := HSlider.new()
+		lamp_slider.min_value = 1
+		lamp_slider.max_value = 3
+		lamp_slider.step = 1
+		lamp_slider.value = 1
+		lamp_slider.custom_minimum_size = Vector2(100, 0)
+		lamp_row.add_child(lamp_slider)
+		var lamp_val_label := Label.new()
+		lamp_val_label.text = "1"
+		lamp_val_label.custom_minimum_size = Vector2(20, 0)
+		lamp_row.add_child(lamp_val_label)
+		var captured_player: PlayerState = _p
+		var captured_label: Label = lamp_val_label
+		lamp_slider.value_changed.connect(func(val: float):
+			captured_player.lamp_level = int(val)
+			captured_label.text = str(int(val))
 		)
-		lamp_row.add_child(lamp_btn)
+		_lamp_sliders.append(lamp_slider)
+		_lamp_labels.append(lamp_val_label)
 		
 		var action_row := HBoxContainer.new()
 		col.add_child(action_row)
@@ -162,3 +175,12 @@ func _build_treasure_icon(data: TreasureData, value: int) -> Control:
 		box.add_child(lbl)
 
 	return box
+
+func set_lamp_sliders_disabled(disabled: bool) -> void:
+	for slider in _lamp_sliders:
+		slider.editable = not disabled
+
+func refresh_lamp(players: Array) -> void:
+	for i in range(players.size()):
+		_lamp_sliders[i].value = players[i].lamp_level
+		_lamp_labels[i].text = str(players[i].lamp_level)

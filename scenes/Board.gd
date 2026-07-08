@@ -116,20 +116,25 @@ func _draw() -> void:
 	for node in map_graph.get_all_nodes():
 		var n: MapNodeDef = node
 		var from_pos: Vector2 = node_positions[n.id]
+		var from_visible: bool = visible_node_ids.is_empty() or visible_node_ids.has(n.id)
 		for next_id in n.forward_connections:
-			if node_positions.has(next_id):
+			if not node_positions.has(next_id):
+				continue
+			var to_visible: bool = visible_node_ids.is_empty() or visible_node_ids.has(next_id)
+			if from_visible and to_visible:
 				draw_line(from_pos, node_positions[next_id], Color(0.4, 0.4, 0.45), 3.0)
 
 	for node in map_graph.get_all_nodes():
 		var n: MapNodeDef = node
 		var pos: Vector2 = node_positions[n.id]
 		var is_visible: bool = visible_node_ids.is_empty() or visible_node_ids.has(n.id)
-		var color := _tile_color(n) if is_visible else Color(0.15, 0.15, 0.18)
+		if not is_visible:
+			continue
 		if highlighted_forward.has(n.id):
 			draw_circle(pos, NODE_RADIUS + 6, Color(1, 1, 1, 0.35))
 		elif highlighted_backward.has(n.id):
 			draw_circle(pos, NODE_RADIUS + 6, Color(0.3, 0.6, 1.0, 0.35))
-		draw_circle(pos, NODE_RADIUS, color)
+		draw_circle(pos, NODE_RADIUS, _tile_color(n))
 		draw_circle(pos, NODE_RADIUS, Color(0, 0, 0, 0.6), false, 2.0)
 
 	var players: Array = GameManager.players

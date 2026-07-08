@@ -67,6 +67,7 @@ func _start_turn(player: PlayerState) -> void:
 	# ADD THESE TWO LINES
 	var visible_ids := GameManager.map_graph.get_visible_node_ids(player.current_node_id, player.lamp_level)
 	GameManager.board.set_visible_nodes(visible_ids)
+	GameManager.hud.set_lamp_sliders_disabled(false)
 
 	state = State.WAITING_ROLL
 	turn_started.emit(player)
@@ -77,6 +78,7 @@ func _start_turn(player: PlayerState) -> void:
 func roll_dice() -> void:
 	if state != State.WAITING_ROLL:
 		return
+	GameManager.hud.set_lamp_sliders_disabled(true)
 	var player := GameManager.get_current_player()
 	var die := DiceRoller.roll_1d6()
 	var backpack_space := player.get_weight_capacity() - player.get_total_weight()

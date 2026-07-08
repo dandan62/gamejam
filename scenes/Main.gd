@@ -38,6 +38,7 @@ func _ready() -> void:
 	hud = HUD.new()
 	side_panel.add_child(hud)
 	hud.setup(GameManager.players)
+	GameManager.hud = hud 
 
 	dice_ui = DiceUI.new()
 	side_panel.add_child(dice_ui)
@@ -94,6 +95,7 @@ func _close_all_prompts() -> void:
 func _on_turn_started(player: PlayerState) -> void:
 	dice_ui.set_enabled(not player.is_cpu)
 	hud.set_movement(player, 0, 0)
+	hud.refresh_lamp(GameManager.players)
 	_close_all_prompts()
 	_refresh_all()
 
