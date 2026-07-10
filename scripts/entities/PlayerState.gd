@@ -64,9 +64,21 @@ func add_permanent_buffs_from(buffs: Array) -> void:
 
 
 ## 遺物のバフは duration の指定に関わらず、拾った時点で常に永続として付与される。
+## MAX_HP/MAX_LIGHTは上限そのものを引き上げる特殊枠のため、バフリストに積まず
+## その場でmax_hp/max_light（と現在値）を直接加算する。
 ## A relic's buffs are always granted as permanent the moment it's picked up, regardless of its duration setting.
+## MAX_HP/MAX_LIGHT are a special case that raise the cap itself, so instead of being pushed onto the
+## buff list they directly increment max_hp/max_light (and the current value) on the spot.
 func add_relic_buffs(buffs: Array) -> void:
-	permanent_buffs.append_array(buffs)
+	for b in buffs:
+		if b.stat == BuffData.Stat.MAX_HP:
+			max_hp += b.amount
+			hp += b.amount
+		elif b.stat == BuffData.Stat.MAX_LIGHT:
+			max_light += b.amount
+			light += b.amount
+		else:
+			permanent_buffs.append(b)
 
 
 ## value は TreasureSpawner がノード配置時に一度だけロールした値を渡す。

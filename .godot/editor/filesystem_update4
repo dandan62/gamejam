@@ -1,8 +1,6 @@
-res://scenes/Main.gd
-res://scenes/ui/ActionPanel.gd
-res://scenes/ui/DiceUI.gd
-res://scenes/ui/GameOverScreen.gd
-res://scenes/ui/HUD.gd
-res://scripts/autoload/GameManager.gd
 res://scripts/core/StatIcons.gd
-res://scripts/data_models/EffectData.gd
+res://scripts/data_models/BuffData.gd
+res://scripts/entities/PlayerState.gd
+res://scenes/Main.tscn
+res://data/relics/tier1/sturdy_backpack.tres
+res://data/relics/tier2/lantern_core.tres

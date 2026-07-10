@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RelicData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/RelicData.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data_models/BuffData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+stat = 4
+amount = 2
+
+[resource]
+script = ExtResource("1")
+id = "glow_flask"
+display_name = "Glow Flask"
+tier = 1
+description = "Permanently increases max Light by +2"
+buffs = [SubResource("1")]
