@@ -39,6 +39,10 @@ static func stat_icon(stat: int) -> String:
 			return WEIGHT
 		BuffData.Stat.LIGHT:
 			return LIGHT
+		BuffData.Stat.MAX_HP:
+			return HP
+		BuffData.Stat.MAX_LIGHT:
+			return LIGHT
 		_:
 			return "?"
 
@@ -51,6 +55,10 @@ static func stat_label(stat: int) -> String:
 			return "Weight"
 		BuffData.Stat.LIGHT:
 			return "Light"
+		BuffData.Stat.MAX_HP:
+			return "Max HP"
+		BuffData.Stat.MAX_LIGHT:
+			return "Max Light"
 		_:
 			return "?"
 

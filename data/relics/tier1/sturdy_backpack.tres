@@ -12,6 +12,5 @@ amount = 2
 script = ExtResource("1")
 id = "sturdy_backpack"
 display_name = "Sturdy Backpack"
-tier = 1
 description = "Permanently increases weight capacity by +2"
 buffs = [SubResource("1")]

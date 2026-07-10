@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/TreasureData.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "polished_pebble"
+display_name = "Polished Pebble"
+tier = 1
+min_value = 3
+max_value = 7
+hp_damage = 0
+weight = 1
+buffs = []

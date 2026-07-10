@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/TreasureData.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "runed_tablet"
+display_name = "Runed Tablet"
+tier = 6
+min_value = 50
+max_value = 70
+hp_damage = 0
+weight = 3
+buffs = []

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RelicData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/RelicData.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data_models/BuffData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+stat = 4
+amount = 4
+
+[resource]
+script = ExtResource("1")
+id = "glow_lantern"
+display_name = "Glow Lantern"
+tier = 2
+description = "Permanently increases max Light by +4"
+buffs = [SubResource("1")]

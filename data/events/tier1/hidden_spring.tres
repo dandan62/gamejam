@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="EventData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/EventData.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data_models/EffectData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+description = "You rest by the spring and tend to your wounds"
+hp_delta = 2
+
+[sub_resource type="Resource" id="2"]
+script = ExtResource("2")
+description = "You dip your lantern in the glowing water and refill it"
+light_delta = 2
+
+[resource]
+script = ExtResource("1")
+id = "hidden_spring"
+tier = 1
+description = "A quiet spring glows faintly in the dark. Do you tend to your wounds or refill your lantern?"
+choice_a_text = "Tend to your wounds (HP+2)"
+choice_a_effect = SubResource("1")
+choice_b_text = "Refill your lantern (Light+2)"
+choice_b_effect = SubResource("2")
