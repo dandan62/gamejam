@@ -3,8 +3,12 @@ class_name Board
 
 ## マップのノード・エッジ・プレイヤー駒を描画する盤面。
 ## ハイライトされている(=現在選択可能な)ノードはクリックで選択できる。
+## 盤面全体は黒で覆われており、現在の手番プレイヤーの現在地からvision_radiusホップ以内
+## （set_vision_radiusで設定）のマスだけが見える（フォグ・オブ・ウォー）。
 ## Draws the map's nodes, edges, and player tokens.
 ## Highlighted (= currently selectable) nodes can be chosen by clicking them.
+## The whole board is covered in black; only tiles within vision_radius hops of the current
+## turn's player position (set via set_vision_radius) are revealed (fog of war).
 
 signal node_clicked(node_id: int)
 
@@ -12,6 +16,7 @@ var map_graph: MapGraph
 var node_positions: Dictionary = {}
 var highlighted_forward: Array = []
 var highlighted_backward: Array = []
+var vision_radius: int = 0
 
 const NODE_RADIUS := 18.0
 const DEPTH_SPACING := 90.0
@@ -42,6 +47,15 @@ func _compute_positions() -> void:
 func set_highlighted(forward_ids: Array, backward_ids: Array) -> void:
 	highlighted_forward = forward_ids
 	highlighted_backward = backward_ids
+	queue_redraw()
+
+
+## 見える範囲（現在の手番プレイヤーの現在地からのホップ数）を設定する。
+## 0なら現在地のマスしか見えない。マップ全体は黒で覆われ、見える範囲外は描画されない。
+## Sets the visible range (in hops from the current turn's player position).
+## 0 means only the current tile is visible. The rest of the map stays covered in black.
+func set_vision_radius(radius: int) -> void:
+	vision_radius = radius
 	queue_redraw()
 
 
@@ -107,15 +121,27 @@ func _draw() -> void:
 	if map_graph == null:
 		return
 
+	draw_rect(Rect2(Vector2.ZERO, size), Color.BLACK)
+
+	var revealed: Dictionary = {}
+	var current_player := GameManager.get_current_player()
+	if current_player != null:
+		for id in map_graph.get_nodes_within_hops(current_player.current_node_id, vision_radius):
+			revealed[id] = true
+
 	for node in map_graph.get_all_nodes():
 		var n: MapNodeDef = node
+		if not revealed.has(n.id):
+			continue
 		var from_pos: Vector2 = node_positions[n.id]
 		for next_id in n.forward_connections:
-			if node_positions.has(next_id):
+			if revealed.has(next_id) and node_positions.has(next_id):
 				draw_line(from_pos, node_positions[next_id], Color(0.4, 0.4, 0.45), 3.0)
 
 	for node in map_graph.get_all_nodes():
 		var n: MapNodeDef = node
+		if not revealed.has(n.id):
+			continue
 		var pos: Vector2 = node_positions[n.id]
 		var color := _tile_color(n)
 		if highlighted_forward.has(n.id):
@@ -129,6 +155,8 @@ func _draw() -> void:
 	for i in range(players.size()):
 		var p: PlayerState = players[i]
 		if p.status == PlayerState.Status.ELIMINATED:
+			continue
+		if not revealed.has(p.current_node_id):
 			continue
 		if not node_positions.has(p.current_node_id):
 			continue
