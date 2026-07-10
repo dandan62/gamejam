@@ -1,11 +1,12 @@
 extends PanelContainer
 class_name HUD
 
-## プレイヤーごとにHP/ライト/行動力(サイコロの出目)をセグメントゲージで表示し、
+## プレイヤーごとにHP/ライト/行動力(サイコロの出目)をセグメントゲージ＋アイコン
+## (StatIcons参照、"HP"のような文章ではなく❤のようなアイコンで表す)で表示し、
 ## 所持お宝をアイコン(未設定なら頭文字のプレースホルダー)で並べて見せるHUD。
-## Per-player HUD showing HP/light/action-points (the dice roll) as segment gauges,
-## plus a row of carried-treasure icons (a first-letter placeholder square when
-## no icon texture is set yet).
+## Per-player HUD showing HP/light/action-points (the dice roll) as segment gauges tagged
+## with icons (see StatIcons -- e.g. ❤ instead of the word "HP"), plus a row of
+## carried-treasure icons (a first-letter placeholder square when no icon texture is set yet).
 
 var _vbox: VBoxContainer
 var _status_labels: Array = []      # Array[Label]
@@ -41,8 +42,8 @@ func setup(players: Array) -> void:
 		var hp_row := HBoxContainer.new()
 		col.add_child(hp_row)
 		var hp_tag := Label.new()
-		hp_tag.text = "HP"
-		hp_tag.custom_minimum_size = Vector2(50, 0)
+		hp_tag.text = StatIcons.tag("HP", StatIcons.HP)
+		hp_tag.custom_minimum_size = Vector2(70, 0)
 		hp_row.add_child(hp_tag)
 		var hp_gauge := SegmentGauge.new()
 		hp_gauge.filled_color = Color(0.85, 0.25, 0.25)
@@ -52,8 +53,8 @@ func setup(players: Array) -> void:
 		var light_row := HBoxContainer.new()
 		col.add_child(light_row)
 		var light_tag := Label.new()
-		light_tag.text = "Light"
-		light_tag.custom_minimum_size = Vector2(50, 0)
+		light_tag.text = StatIcons.tag("Light", StatIcons.LIGHT)
+		light_tag.custom_minimum_size = Vector2(70, 0)
 		light_row.add_child(light_tag)
 		var light_gauge := SegmentGauge.new()
 		light_gauge.filled_color = Color(0.3, 0.8, 0.4)
@@ -63,8 +64,8 @@ func setup(players: Array) -> void:
 		var action_row := HBoxContainer.new()
 		col.add_child(action_row)
 		var action_tag := Label.new()
-		action_tag.text = "Action"
-		action_tag.custom_minimum_size = Vector2(50, 0)
+		action_tag.text = StatIcons.tag("Move", StatIcons.MOVE)
+		action_tag.custom_minimum_size = Vector2(70, 0)
 		action_row.add_child(action_tag)
 		var action_gauge := SegmentGauge.new()
 		action_gauge.filled_color = Color(0.55, 0.35, 0.9)
@@ -102,8 +103,10 @@ func refresh(players: Array) -> void:
 		_action_gauges[i].set_value(mv["remaining"], mv["total"])
 
 		var weight_text := "%d/%d" % [p.get_total_weight(), p.get_weight_capacity()]
-		_detail_labels[i].text = "Weight:%s  Treasures:%d  Score:%d" % [
-			weight_text, p.carried_treasures.size(), p.banked_score
+		_detail_labels[i].text = "%s   %s   %s" % [
+			StatIcons.tag("Weight", StatIcons.WEIGHT, weight_text),
+			StatIcons.tag("Bag", StatIcons.TREASURE_COUNT, str(p.carried_treasures.size())),
+			StatIcons.tag("Score", StatIcons.SCORE, str(p.banked_score)),
 		]
 
 		_refresh_treasure_row(_treasure_rows[i], p)
@@ -123,7 +126,7 @@ const ICON_SIZE := Vector2(28, 28)
 func _build_treasure_icon(data: TreasureData, value: int) -> Control:
 	var box := Control.new()
 	box.custom_minimum_size = ICON_SIZE
-	box.tooltip_text = "%s (Value %d)" % [data.display_name, value]
+	box.tooltip_text = "%s (%s)" % [data.display_name, StatIcons.tag("Score", StatIcons.SCORE, str(value))]
 
 	if data.icon != null:
 		var tex := TextureRect.new()

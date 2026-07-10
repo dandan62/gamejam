@@ -24,8 +24,12 @@ func prompt(context: Dictionary) -> void:
 	match context.get("kind"):
 		"treasure":
 			var data: TreasureData = context["data"]
-			info.text = "Treasure: %s (Value %d / Weight %d / HP damage %d)" % [
-				data.display_name, context["value"], data.weight, data.hp_damage
+			info.text = "Treasure: %s (%s / %s / %s)  %s" % [
+				data.display_name,
+				StatIcons.tag("Score", StatIcons.SCORE, str(context["value"])),
+				StatIcons.tag("Weight", StatIcons.WEIGHT, str(data.weight)),
+				StatIcons.tag("HP", StatIcons.HP, "-%d" % data.hp_damage),
+				StatIcons.buffs_summary(data.buffs),
 			]
 			vbox.add_child(info)
 			var pick_btn := Button.new()
@@ -36,7 +40,9 @@ func prompt(context: Dictionary) -> void:
 			_add_ignore_button()
 		"relic":
 			var relic: RelicData = context["data"]
-			info.text = "Relic: %s - %s" % [relic.display_name, relic.description]
+			info.text = "Relic: %s - %s  %s" % [
+				relic.display_name, relic.description, StatIcons.buffs_summary(relic.buffs)
+			]
 			vbox.add_child(info)
 			var pick_btn := Button.new()
 			pick_btn.text = "Pick Up"

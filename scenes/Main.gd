@@ -39,7 +39,7 @@ func _ready() -> void:
 
 	dice_ui = DiceUI.new()
 	side_panel.add_child(dice_ui)
-	dice_ui.roll_pressed.connect(_on_roll_pressed)
+	dice_ui.option_chosen.connect(_on_option_chosen)
 
 	action_panel = ActionPanel.new()
 	side_panel.add_child(action_panel)
@@ -64,7 +64,8 @@ func _ready() -> void:
 	turn_manager = TurnManager.new()
 	add_child(turn_manager)
 	turn_manager.turn_started.connect(_on_turn_started)
-	turn_manager.dice_rolled.connect(_on_dice_rolled)
+	turn_manager.movement_option_chosen.connect(_on_movement_option_chosen)
+	turn_manager.vision_changed.connect(_on_vision_changed)
 	turn_manager.movement_changed.connect(_on_movement_changed)
 	turn_manager.path_choices_ready.connect(_on_path_choices_ready)
 	turn_manager.player_moved.connect(_on_player_moved)
@@ -96,13 +97,17 @@ func _on_turn_started(player: PlayerState) -> void:
 	_refresh_all()
 
 
-func _on_roll_pressed() -> void:
-	turn_manager.roll_dice()
+func _on_option_chosen(option: int) -> void:
+	turn_manager.choose_movement_option(option)
 
 
-func _on_dice_rolled(_player: PlayerState, die: int, backpack_space: int, movement: int) -> void:
-	dice_ui.show_result(die, backpack_space, movement)
+func _on_movement_option_chosen(_player: PlayerState, option: int, die: int, backpack_space: int, movement: int) -> void:
+	dice_ui.show_result(option, die, backpack_space, movement)
 	dice_ui.set_enabled(false)
+
+
+func _on_vision_changed(radius: int) -> void:
+	board.set_vision_radius(radius)
 
 
 func _on_movement_changed(player: PlayerState, remaining: int, total: int) -> void:
@@ -156,5 +161,6 @@ func _on_turn_ended(_player: PlayerState) -> void:
 
 
 func _on_game_over(ranking: Array) -> void:
+	board.set_vision_radius(0)
 	_refresh_all()
 	game_over_screen.show_ranking(ranking)

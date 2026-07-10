@@ -20,6 +20,6 @@ func show_ranking(ranking: Array) -> void:
 		var p: PlayerState = ranking[i]
 		var lbl := Label.new()
 		var status_text := "Returned" if p.status == PlayerState.Status.RETURNED else "Eliminated"
-		lbl.text = "#%d: %s - %d pts (%s)" % [i + 1, p.display_name, p.banked_score, status_text]
+		lbl.text = "#%d: %s - %s (%s)" % [i + 1, p.display_name, StatIcons.tag("Score", StatIcons.SCORE, str(p.banked_score)), status_text]
 		vbox.add_child(lbl)
 	show()

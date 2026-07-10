@@ -8,6 +8,20 @@ class_name CPUAI
 ## light and how much treasure is carried, and picks destinations/event choices by tile content.
 ## Direction is re-evaluated every single tile rather than once per turn.
 
+## ターン開始時のオプション(1〜3、見える範囲とライト消費量を決める。移動力自体には影響しない)
+## を残りライトから決める。残りが少なければ小さいオプションでライトを温存し、余裕があれば
+## 大きいオプションで見える範囲を広げる。
+## Picks the turn's option (1-3, which sets the visible range and Light cost -- it doesn't
+## affect movement itself) from remaining Light. Conserves Light with a small option when low,
+## widens the visible range with a bigger option when there's headroom.
+static func choose_movement_option(player: PlayerState) -> int:
+	if player.light <= 3:
+		return 1
+	if player.light <= 6:
+		return 2
+	return 3
+
+
 ## その1マスで前進/後退のどちらを選ぶかを決め、選んだ側の中から目的地を選ぶ。
 ## Decides forward vs. backward for this one tile, then picks a destination
 ## among the candidates on the chosen side.

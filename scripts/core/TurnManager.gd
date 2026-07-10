@@ -2,24 +2,34 @@ extends Node
 class_name TurnManager
 
 ## 1ターンの進行を担うステートマシン。
-## 出目を移動力として1マスずつ進み、止まったマスごとにアクションを解決する
-## （移動力を使い切るか、経路が尽きるか、帰還するまで繰り返す）。
+## ターン開始時、プレイヤーは移動オプション(1〜3)を選ぶ。移動力自体はダイス1個＋
+## バックパックの空き（＋MOVEバフ）のままオプションでは変わらないが、選んだ値がそのまま
+## 「見える範囲(マス数、フォグ・オブ・ウォーの半径)」と「ターン終了時のライト消費量」になる
+## （大きい数を選ぶほど遠くまで見えるが、ライトも多く減る）。
+## ダイスで決まった移動力を使って1マスずつ進み、止まったマスごとにアクションを解決する
+## （移動力を使い切るか、経路が尽きるか、帰還するまで繰り返す）。移動が終わると
+## 見える範囲は0（現在地のみ）に戻る。
 ## 進行方向はターン開始時に固定されず、1マスごとに前進/後退を選び直せる。
-## 人間プレイヤーの手番ではUIからの呼び出し(roll_dice/choose_path/...)を待ち、
+## 人間プレイヤーの手番ではUIからの呼び出し(choose_movement_option/choose_path/...)を待ち、
 ## CPUの手番では各ステートに入った直後にCPUAIの判断で自動的に同じ関数を呼ぶ。
 ## State machine that drives a single turn.
-## Uses the roll as movement points and advances one tile at a time, resolving an
-## action on each tile landed on (repeats until movement runs out, the path runs out,
-## or the player returns to the surface).
+## At the start of a turn, the player picks an option (1-3). Movement itself is unaffected by
+## the option -- it's still 1 die roll + empty backpack space (+ any MOVE buff) -- but the
+## chosen value directly becomes the visible range (fog-of-war radius, in tiles) and the Light
+## spent at end of turn (picking a bigger number sees further but costs more Light).
+## Using the dice-rolled movement budget, the player advances one tile at a time, resolving an
+## action on each tile landed on (repeats until movement runs out, the path runs out, or the
+## player returns to the surface). Once movement ends, the visible range drops back to 0
+## (current tile only).
 ## Direction isn't locked in at the start of the turn -- forward/backward can be
 ## re-chosen on every single tile.
-## On a human player's turn it waits for UI calls (roll_dice/choose_path/...);
+## On a human player's turn it waits for UI calls (choose_movement_option/choose_path/...);
 ## on a CPU turn it calls those same functions itself right after entering each state,
 ## using CPUAI's decisions.
 
 enum State {
 	IDLE,
-	WAITING_ROLL,
+	WAITING_MOVE_CHOICE,
 	WAITING_STEP,
 	WAITING_TILE_ACTION,
 	WAITING_EVENT_CHOICE,
@@ -27,7 +37,8 @@ enum State {
 }
 
 signal turn_started(player: PlayerState)
-signal dice_rolled(player: PlayerState, die: int, backpack_space: int, movement: int)
+signal movement_option_chosen(player: PlayerState, option: int, die: int, backpack_space: int, movement: int)
+signal vision_changed(radius: int)
 signal movement_changed(player: PlayerState, remaining: int, total: int)
 signal path_choices_ready(player: PlayerState, forward_ids: Array, backward_ids: Array)
 signal player_moved(player: PlayerState, node_id: int)
@@ -48,6 +59,7 @@ var _remaining_steps: int = 0
 var _current_node: MapNodeDef
 var _pending_event: EventData
 var _was_return: bool = false
+var _light_cost: int = 1
 
 
 func start_game() -> void:
@@ -63,21 +75,31 @@ func _start_turn(player: PlayerState) -> void:
 	if player.status == PlayerState.Status.RETURNED:
 		player.status = PlayerState.Status.ACTIVE
 	_was_return = false
-	state = State.WAITING_ROLL
+	state = State.WAITING_MOVE_CHOICE
 	turn_started.emit(player)
 	if player.is_cpu:
-		roll_dice()
+		choose_movement_option(CPUAI.choose_movement_option(player))
 
 
-func roll_dice() -> void:
-	if state != State.WAITING_ROLL:
+## option: 1〜3。移動力自体は変わらず(ダイス1個＋バックパックの空きのまま)、この値は
+## 「見える範囲(マス数)」と「ターン終了時のライト消費量」だけを決める
+## （大きく選ぶほど遠くまで見えるが、ライトも多く減る）。
+## option: 1-3. Movement itself is unaffected (still 1 die roll + empty backpack space);
+## this value only decides the visible range (in tiles) and the Light spent at end of turn
+## (a bigger pick sees further but costs more Light).
+func choose_movement_option(option: int) -> void:
+	if state != State.WAITING_MOVE_CHOICE:
 		return
+	option = clamp(option, 1, 3)
 	var player := GameManager.get_current_player()
+	_light_cost = option
+	vision_changed.emit(option)
+
 	var die := DiceRoller.roll_1d6()
 	var backpack_space := player.get_weight_capacity() - player.get_total_weight()
 	_movement = die + backpack_space + player.get_stat_bonus(BuffData.Stat.MOVE)
 	_movement = max(_movement, 0)
-	dice_rolled.emit(player, die, backpack_space, _movement)
+	movement_option_chosen.emit(player, option, die, backpack_space, _movement)
 
 	var map_graph: MapGraph = GameManager.map_graph
 	if _movement <= 0 or (not map_graph.has_forward(player.current_node_id) and not map_graph.has_backward(player.current_node_id)):
@@ -109,7 +131,7 @@ func _advance_one_step() -> void:
 	var candidates: Array = forward_ids + backward_ids
 
 	if candidates.is_empty():
-		state = State.WAITING_ROLL
+		state = State.WAITING_MOVE_CHOICE
 		_finish_turn(player)
 		return
 
@@ -252,7 +274,7 @@ func _after_tile_resolved(player: PlayerState) -> void:
 	if _remaining_steps > 0:
 		_advance_one_step()
 		return
-	state = State.WAITING_ROLL
+	state = State.WAITING_MOVE_CHOICE
 	_finish_turn(player)
 
 
@@ -269,10 +291,11 @@ func _check_elimination(player: PlayerState) -> bool:
 
 func _finish_turn(player: PlayerState) -> void:
 	if not _was_return and player.status == PlayerState.Status.ACTIVE:
-		var light_cost: int = max(1 - player.get_stat_bonus(BuffData.Stat.LIGHT), 0)
+		var light_cost: int = max(_light_cost - player.get_stat_bonus(BuffData.Stat.LIGHT), 0)
 		player.light = max(player.light - light_cost, 0)
 		_check_elimination(player)
 
+	vision_changed.emit(0)
 	turn_ended.emit(player)
 
 	if not GameManager.has_non_eliminated_players():

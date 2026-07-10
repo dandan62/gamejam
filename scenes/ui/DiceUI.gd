@@ -1,11 +1,20 @@
 extends PanelContainer
 class_name DiceUI
 
-signal roll_pressed
+## ターン開始時に、見える範囲とライト消費量を決めるオプション(1〜3)を選ばせ、続けて
+## 1D6を振らせるUI。移動力自体はダイス＋バックパックの空きで決まり、オプションの影響は
+## 受けない。オプションが決めるのは見える範囲(フォグ・オブ・ウォー)とターン終了時の
+## ライト消費量だけ。
+## UI that has the player pick an option (1-3, which sets the visible range and end-of-turn
+## Light cost) at the start of a turn, then rolls 1d6. Movement itself is decided purely by
+## the die + empty backpack space and isn't affected by the option -- the option only controls
+## the visible range (fog of war) and the Light spent at end of turn.
+
+signal option_chosen(option: int)
 
 var result_label: Label
-var roll_button: Button
 var dice3d: Dice3D
+var option_buttons: Array = []  # Array[Button]
 
 
 func _ready() -> void:
@@ -14,18 +23,32 @@ func _ready() -> void:
 	dice3d = Dice3D.new()
 	vbox.add_child(dice3d)
 	result_label = Label.new()
-	result_label.text = "Roll the dice"
+	result_label.text = "Choose your Light spend, then roll"
 	vbox.add_child(result_label)
-	roll_button = Button.new()
-	roll_button.text = "Roll Dice (1D6)"
-	roll_button.pressed.connect(func(): roll_pressed.emit())
-	vbox.add_child(roll_button)
+
+	for i in range(3):
+		var option := i + 1
+		var btn := Button.new()
+		btn.text = "%d: %s (%s)" % [
+			option,
+			StatIcons.tag("Light", StatIcons.LIGHT, StatIcons.signed(-option)),
+			StatIcons.tag("Vision", StatIcons.VISION, str(option)),
+		]
+		btn.pressed.connect(func(): option_chosen.emit(option))
+		vbox.add_child(btn)
+		option_buttons.append(btn)
 
 
-func show_result(die: int, backpack_space: int, movement: int) -> void:
-	result_label.text = "Roll: %d + Backpack %d = Movement %d" % [die, backpack_space, movement]
+func show_result(option: int, die: int, backpack_space: int, movement: int) -> void:
+	result_label.text = "%s | %s + %s = %s" % [
+		StatIcons.tag("Light", StatIcons.LIGHT, StatIcons.signed(-option)),
+		StatIcons.tag("Roll", StatIcons.DICE, str(die)),
+		StatIcons.tag("Bag", StatIcons.TREASURE_COUNT, str(backpack_space)),
+		StatIcons.tag("Move", StatIcons.MOVE, str(movement)),
+	]
 	dice3d.roll(die)
 
 
 func set_enabled(enabled: bool) -> void:
-	roll_button.disabled = not enabled
+	for btn in option_buttons:
+		btn.disabled = not enabled
