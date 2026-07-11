@@ -7,7 +7,7 @@
 尽きる前に、どこで引き返すかを自分で判断するのが肝です。お宝はスタート地点まで持ち帰って初めて
 スコアとして確定します。途中で脱落したりライト切れになると、その時点で持っているお宝は全て失います。
 
-ゲーム内容は**完全にデータ駆動**です。マップ／お宝／イベント／妨害／遺物はすべて `data/` 以下の
+ゲーム内容は**完全にデータ駆動**です。マップ／お宝／イベント／遺物はすべて `data/` 以下の
 個別ファイルとして存在するので、コードを一切触らずに新しいコンテンツの追加や調整ができます。
 
 ## 必要環境・起動方法
@@ -28,14 +28,13 @@ deep_abiss/
     maps/*.txt                 # マップレイアウト（テキスト形式。詳細は下記）
     treasures/tierN/*.tres
     events/tierN/*.tres
-    hazards/tierN/*.tres
     relics/tierN/*.tres
   scenes/
     Main.gd                    # ルート。UIツリー全体を構築し、TurnManagerのシグナルを配線する
     Board.gd                   # マップのグラフと駒を描画し、マスのクリックを受け付ける
     ui/
       HUD.gd, SegmentGauge.gd  # プレイヤーごとのHP/ライト/行動力ゲージ＋所持お宝アイコン
-      DiceUI.gd, Dice3D.gd     # ダイスを振るボタン＋3Dダイスの見た目
+      DiceUI.gd, Dice3D.gd     # ダイスを振るボタン＋3Dダイスの見た目＋ダイス下のマス種別凡例
       ActionPanel.gd           # 拾う/無視/捨てるの選択UI
       EventPopup.gd            # イベントの2択UI
       GameOverScreen.gd        # 最終順位表示
@@ -46,14 +45,16 @@ deep_abiss/
     core/
       TurnManager.gd           # ターン進行のステートマシン本体（下記参照）
       DiceRoller.gd            # 1D6ロール
-      TierSelector.gd          # 深度→tierの重み付き抽選
+      TierSelector.gd          # 深度→tierの帯域マッピング
       TreasureSpawner.gd       # ゲーム開始時、マスごとにお宝/遺物の中身を1回だけ抽選する
+      StatIcons.gd             # HP/ライト/スコア等のバフ表示用ラベル＋アイコン文字列
+      TileIcons.gd             # マス種別ごとの色・ラベル・説明。Boardとダイス下の凡例が共有
     map/
       MapGraph.gd              # MapDefinitionから前進/後退の隣接情報（ランタイムグラフ）を構築
       MapTextLoader.gd         # data/maps/*.txt を解析してMapDefinitionを作る
     data_models/                # 各コンテンツ種別に対応する素のResource（class_name付き）定義
       MapDefinition.gd, MapNodeDef.gd
-      TreasureData.gd, EventData.gd, HazardData.gd, RelicData.gd
+      TreasureData.gd, EventData.gd, RelicData.gd
       EffectData.gd, BuffData.gd
     entities/
       PlayerState.gd           # 1プレイヤー分のHP/ライト/重量/所持お宝/ステータス
@@ -70,18 +71,22 @@ deep_abiss/
    ボーナス＝このターンの移動力。お宝を多く持つほど、次のロールでの移動力は小さくなります。
 2. **1マスずつ移動** — 移動力を使い切るか、行き先がなくなるまで1マスずつ進みます。**マスに止まる
    たびに**、前進（奥へ）・後退（手前へ）両方向の隣接マスをまとめて候補として提示します。つまり
-   方向はターン開始時に一度決めるのではなく、**1マスごとに選び直せます**。人間プレイヤーは盤面上の
-   ハイライトされたマスをクリック（前進は白、後退は水色の光）、CPUは `CPUAI.choose_path()` で判断
-   します。
+   方向はターン開始時に一度決めるのではなく、**1マスごとに選び直せます**。候補が1つしかない場合
+   でも**自動では進まず**、人間プレイヤーは必ず盤面上のハイライトされたマスをクリック（前進は白、
+   後退は水色の光）、CPUは必ず `CPUAI.choose_path()` で明示的に判断します。
 3. **止まったマスの解決**：
    - `EMPTY`（空マス） — 何も起きません。プロンプトを出さず（人間・CPUどちらの場合も）即座に
      解決されるので、テンポを損ないません。
    - `TREASURE`（お宝） — 拾う（重量上限内に収まる場合のみ）か無視。拾うとそのお宝のHPダメージと
      `WHILE_HELD`/`PERMANENT` バフが即座に適用されます。
    - `EVENT`（イベント） — 2択のプロンプトが出て、選んだ方の `EffectData` が適用されます。
-   - `HAZARD`（妨害） — 選択肢なし。`EffectData` が自動的に適用されます。
-   - `RELIC`（遺物） — 拾うか無視。拾うとその場でバフが永続付与されます（遺物は脱落時も含め
-     ロストしません）。
+   - `BRIDGE`（橋） — 通過したプレイヤーが「橋を破壊する」か「そのままにする」かを選べます。破壊
+     すると、そのマスは以後**誰も**（自分自身も含めて）通れなくなります（`MapGraph.get_forward_ids`/
+     `get_backward_ids` の候補から除外されるだけの実装）。壊さなければ、次にそこを通る誰かが改めて
+     同じ選択をできます。
+   - `RELIC`（遺物） — スコアの無いお宝のように振る舞います。拾う（重量上限内に収まる場合のみ）か
+     無視。拾うとその場でバフが永続付与され、`carried_relics` に入って重量を占有し続けます。
+     `carried_treasures` と違い、帰還時のスコア確定でも脱落時でも一切クリアされません。
    - 既に取得済みの `TREASURE`/`RELIC` マスは `EMPTY` と同じ扱いになります。
 4. **帰還** — 後退の結果スタート地点に到達すると、所持お宝の価値が `banked_score` に加算され、
    ライトが全回復し、ステータスが `RETURNED` になります。これは**引退ではありません**（詳細は下記）。
@@ -107,10 +112,10 @@ deep_abiss/
   `MapGraph`、`TreasureSpawner` を保持します。ターン進行ロジック自体は持たず、
   `advance_to_next_player()` は単に「脱落していない次のプレイヤー」へ手番を回し、全員が1巡したら
   `round_number` を進めるだけです。
-- **`DataLoader`**（オートロード） — 起動時に `data/treasures`、`data/events`、`data/hazards`、
-  `data/relics` を再帰的に走査し、見つけた `.tres` を全て `*_by_tier`（イベント/妨害/遺物は
-  `*_by_id` も）の辞書に読み込みます。`data/maps/*.txt` も読み込みますが、こちらは
-  **再帰的ではない**ため、マップファイルはサブフォルダではなく直下に置く必要があります。
+- **`DataLoader`**（オートロード） — 起動時に `data/treasures`、`data/events`、`data/relics` を
+  再帰的に走査し、見つけた `.tres` を全て `*_by_tier`（イベント/遺物は `*_by_id` も）の辞書に
+  読み込みます。`data/maps/*.txt` も読み込みますが、こちらは**再帰的ではない**ため、マップファイル
+  はサブフォルダではなく直下に置く必要があります。
 - **`TurnManager`** は `Main` 配下の `Node` で、ターンの状態を持つのはここだけです
   （`State` enum: `IDLE, WAITING_ROLL, WAITING_STEP, WAITING_TILE_ACTION, WAITING_EVENT_CHOICE,
   GAME_OVER`）。観測可能な出来事は全てシグナルとして発行します（`dice_rolled`、
@@ -120,16 +125,19 @@ deep_abiss/
   UI側からの `roll_dice()` / `choose_path()` / `choose_tile_action()` / `choose_event()` 呼び出しを
   待ち、CPUの手番では各ステートに入った直後にこれらの関数を自分で呼び出します。
 - **`MapGraph`** は `MapDefinition` の（フラットな）ノード一覧から前進/後退の隣接情報を構築します
-  （後退側のエッジは、全ノードの `forward_connections` から自動的に逆算されます）。
+  （後退側のエッジは、全ノードの `forward_connections` から自動的に逆算されます）。破壊済みの
+  `BRIDGE` マスも保持しており（`break_bridge`/`is_bridge_broken`）、`get_forward_ids`/
+  `get_backward_ids` の結果からは常に除外されるため、破壊済みの橋はどのマスからも到達不能になります。
 - **`TreasureSpawner`** は、ゲーム開始時に全ての `TREASURE`/`RELIC` マスの中身を1回だけ抽選します
   （`TierSelector.pick_tier(depth)` でtierを決め、そのtierのプールからアイテムをランダムに選び、
   お宝の場合はさらに `min_value`/`max_value` の範囲で価値をロールします）。一度誰かが取得すると、
   そのマスはゲーム終了までずっと空マス扱いになります。
 - **`CPUAI`** は状態を持たない単純なヒューリスティックです。前進先が無い場合、ライトが少ない
   （`<= 2`）状態で何か持っている場合、あるいは3個以上お宝を持っている場合は撤退を選びます。それ
-  以外は前進候補の中で最も良さそうなマス（`TREASURE` > `RELIC` > `EVENT` > `EMPTY` > `HAZARD` の
+  以外は前進候補の中で最も良さそうなマス（`TREASURE` > `RELIC` > `EVENT` > `EMPTY` = `BRIDGE` の
   順）へ進みます。マスでの行動もシンプルです（遺物は必ず拾う、お宝は重量が収まる時だけ拾う、
-  イベントはHP/ライト/スコアの増減からスコアリングして選択。空マスは選択肢自体が無いので何もしない）。
+  イベントはHP/ライト/スコアの増減からスコアリングして選択、橋は2個以上お宝を持っていれば
+  追ってくる他プレイヤーを妨害するため破壊し、そうでなければそのままにする）。
 
 ## マップの作り方（`data/maps/*.txt`）
 
@@ -142,7 +150,7 @@ deep_abiss/
 | `n` | 何もない |
 | `t` | お宝 |
 | `e` | イベント |
-| `h` | 妨害 |
+| `h` | 橋 |
 | `r` | 遺物 |
 | `.` | その深度・そのレーンにはマスなし |
 
@@ -196,10 +204,13 @@ ehhtt
 |---|---|---|
 | `TreasureData` | `id`, `display_name`, `tier`, `min_value`, `max_value`, `hp_damage`, `weight`, `icon`（Texture2D）, `buffs: Array[BuffData]` | 価値は配置のたびに `min_value`/`max_value` の範囲で1回だけロールされます。`icon` はHUDの所持お宝行に表示され、未設定の場合はHUD側で頭文字入りの色付き四角に自動フォールバックします。 |
 | `EventData` | `id`, `tier`, `description`, `choice_a_text`, `choice_a_effect`, `choice_b_text`, `choice_b_effect` | `EVENT` マスに乗せる。2択のプロンプトを出す。 |
-| `HazardData` | `id`, `tier`, `description`, `effect` | `HAZARD` マスに乗せる。`effect` はプレイヤーの選択なしに自動適用される。 |
-| `RelicData` | `id`, `display_name`, `tier`, `description`, `buffs: Array[BuffData]` | `RELIC` マスに乗せる。拾った瞬間にバフが永続付与される（脱落時も含めロストしない）。 |
-| `EffectData` | `description`, `hp_delta`, `light_delta`, `score_delta`, `apply_buff`（BuffData）, `drop_treasure_count`, `next_treasure_multiplier` | イベント・妨害の両方が使う汎用の効果データ。フィールドをデフォルト値（`0` / `1.0` / `null`）のままにしておけば「効果なし」として無視されるので、変えたいフィールドだけ設定すればOK。 |
-| `BuffData` | `stat`（`MOVE` / `WEIGHT` / `LIGHT`）, `amount`, `duration`（`PERMANENT` / `WHILE_HELD`） | 所持お宝由来の `WHILE_HELD` バフは、そのお宝を持っている間だけ効果があります。遺物のバフは `duration` の値に関係なく常に `PERMANENT` として付与されます。 |
+| `RelicData` | `id`, `display_name`, `tier`, `description`, `weight`, `buffs: Array[BuffData]` | `RELIC` マスに乗せる。スコアの無いお宝のように振る舞い、`PlayerState.carried_relics` に入って重量を永久に占有する。拾った瞬間にバフが永続付与される（脱落時も含めロストしない）。 |
+| `EffectData` | `description`, `hp_delta`, `light_delta`, `score_delta`, `apply_buff`（BuffData）, `drop_treasure_count`, `next_treasure_multiplier` | イベントが使う汎用の効果データ。フィールドをデフォルト値（`0` / `1.0` / `null`）のままにしておけば「効果なし」として無視されるので、変えたいフィールドだけ設定すればOK。 |
+| `BuffData` | `stat`（`MOVE` / `WEIGHT` / `LIGHT` / `MAX_HP` / `MAX_LIGHT`）, `amount`, `duration`（`PERMANENT` / `WHILE_HELD`） | 所持お宝由来の `WHILE_HELD` バフは、そのお宝を持っている間だけ効果があります。遺物のバフは `duration` の値に関係なく常に `PERMANENT` として付与されます。`MAX_HP`/`MAX_LIGHT` は遺物専用で、`PlayerState.add_relic_buffs` がこの2つだけ特別扱いし、動的なボーナスとして積むのではなく上限（と現在値）を直接引き上げます。 |
+
+`BRIDGE` マスには専用のデータファイルはありません。「破壊するか、そのままにするか」の選択と
+その効果は完全にコード側（`TurnManager._resolve_tile`/`choose_tile_action` と
+`MapGraph.break_bridge`）で処理されます。
 
 `.tres` の例（イベント、`data/events/tier1/hidden_draft.tres`）：
 
@@ -233,14 +244,13 @@ choice_b_effect = SubResource("2")
 
 ### tierの抽選（`TierSelector.gd`）
 
-お宝／イベント／妨害のtierはマップファイルに書かれているわけではなく、マスの**深度**から実行時に
-`TierSelector.pick_tier(depth)` で抽選されます：
+お宝／イベントのtierはマップファイルに書かれているわけではなく、マスの**深度**から実行時に
+`TierSelector.pick_tier(depth)` で決まる固定の深度帯マッピングです：
 
-- 深度1〜3 → 常にtier1
-- 深度4〜6 → tier1とtier2が半々
-- 深度7以降 → 3深度ごとに「基準tier」（3から始まり、以後+1）が50%の重みを持ち、その前後の
-  tier（±1）がそれぞれ25%になります。基準tierが上限（`MAX_TIER = 7`）に達すると、存在しない側の
-  重みは基準tierへ加算されます。
+- 深度1〜6 → tier1
+- 深度7〜12 → tier2
+- 深度13〜18 → tier3
+- 深度19〜20 → tier4
 
 `RELIC` マスも同じ `pick_tier(depth)` を独立に使用します。
 
@@ -250,11 +260,10 @@ choice_b_effect = SubResource("2")
 
 ### 一見繋がっていそうで、まだ繋がっていないもの
 
-- `MapNodeDef.fixed_event_id` / `fixed_hazard_id` は**実際に機能します**。値を設定すると、その
-  `EVENT`/`HAZARD` マスはランダムなtier抽選ではなく、必ず指定したidのイベント/妨害になります
-  （idが見つからない場合はランダム抽選にフォールバックします）。ただし `fixed_relic_id` は
-  **どこからも参照されていません** — `RELIC` マスはこのフィールドの値に関わらず、常に
-  `TreasureSpawner` によってtierからランダムに抽選されます。
+- `MapNodeDef.fixed_event_id` は**実際に機能します**。値を設定すると、その `EVENT` マスはランダムな
+  tier抽選ではなく、必ず指定したidのイベントになります（idが見つからない場合はランダム抽選に
+  フォールバックします）。ただし `fixed_relic_id` は**どこからも参照されていません** — `RELIC`
+  マスはこのフィールドの値に関わらず、常に `TreasureSpawner` によってtierからランダムに抽選されます。
 - `MapNodeDef.tier`（ノードごとのtierフィールド）も同様に**どこからも読まれていません** — tierは
   常にそのノードの `depth` から `TierSelector` 経由で決まり、このフィールドの値は使われません。
 

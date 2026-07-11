@@ -103,9 +103,10 @@ func refresh(players: Array) -> void:
 		_action_gauges[i].set_value(mv["remaining"], mv["total"])
 
 		var weight_text := "%d/%d" % [p.get_total_weight(), p.get_weight_capacity()]
+		var bag_count := p.carried_treasures.size() + p.carried_relics.size()
 		_detail_labels[i].text = "%s   %s   %s" % [
 			StatIcons.tag("Weight", StatIcons.WEIGHT, weight_text),
-			StatIcons.tag("Bag", StatIcons.TREASURE_COUNT, str(p.carried_treasures.size())),
+			StatIcons.tag("Bag", StatIcons.TREASURE_COUNT, str(bag_count)),
 			StatIcons.tag("Score", StatIcons.SCORE, str(p.banked_score)),
 		]
 
@@ -118,6 +119,8 @@ func _refresh_treasure_row(row: HBoxContainer, player: PlayerState) -> void:
 	for entry in player.carried_treasures:
 		var data: TreasureData = entry["data"]
 		row.add_child(_build_treasure_icon(data, int(entry["value"])))
+	for relic in player.carried_relics:
+		row.add_child(_build_relic_icon(relic))
 
 
 const ICON_SIZE := Vector2(28, 28)
@@ -146,5 +149,28 @@ func _build_treasure_icon(data: TreasureData, value: int) -> Control:
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		box.add_child(lbl)
+
+	return box
+
+
+## 遺物はスコアが無いので、アイコンにも数値は出さず色(TileIcons.RELIC_COLOR)とツールチップだけで
+## お宝と区別する。
+## Relics carry no score, so the icon shows no number -- it's distinguished from treasure just by
+## color (TileIcons.RELIC_COLOR) and its tooltip.
+func _build_relic_icon(data: RelicData) -> Control:
+	var box := Control.new()
+	box.custom_minimum_size = ICON_SIZE
+	box.tooltip_text = "%s - %s  %s" % [data.display_name, data.description, StatIcons.buffs_summary(data.buffs)]
+
+	var bg := ColorRect.new()
+	bg.color = TileIcons.RELIC_COLOR
+	bg.custom_minimum_size = ICON_SIZE
+	box.add_child(bg)
+	var lbl := Label.new()
+	lbl.text = data.display_name.substr(0, 1)
+	lbl.custom_minimum_size = ICON_SIZE
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	box.add_child(lbl)
 
 	return box

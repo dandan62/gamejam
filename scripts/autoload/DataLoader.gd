@@ -1,18 +1,16 @@
 extends Node
 
-## data/ 以下の .tres リソース（お宝/イベント/妨害/遺物）と .txt マップを
+## data/ 以下の .tres リソース（お宝/イベント/遺物）と .txt マップを
 ## 起動時に再帰的に読み込み、tier/id別に引けるキャッシュを提供するオートロード。
 ## 個別ファイルを追加・編集するだけでゲーム内容を調整できるようにするための仕組み。
 ## Autoload that recursively loads all .tres resources under data/ (treasures/events/
-## hazards/relics) and .txt maps at startup, and exposes caches lookup-able by tier/id.
+## relics) and .txt maps at startup, and exposes caches lookup-able by tier/id.
 ## Lets game content be tuned just by adding/editing individual files.
 
 var treasures_by_tier: Dictionary = {}
 var events_by_tier: Dictionary = {}
-var hazards_by_tier: Dictionary = {}
 var relics_by_tier: Dictionary = {}
 var events_by_id: Dictionary = {}
-var hazards_by_id: Dictionary = {}
 var relics_by_id: Dictionary = {}
 var maps: Dictionary = {}
 
@@ -20,7 +18,6 @@ var maps: Dictionary = {}
 func _ready() -> void:
 	_load_folder("res://data/treasures", _register_treasure)
 	_load_folder("res://data/events", _register_event)
-	_load_folder("res://data/hazards", _register_hazard)
 	_load_folder("res://data/relics", _register_relic)
 	_load_maps("res://data/maps")
 
@@ -81,16 +78,6 @@ func _register_event(res: Resource) -> void:
 			events_by_id[e.id] = e
 
 
-func _register_hazard(res: Resource) -> void:
-	if res is HazardData:
-		var h: HazardData = res
-		if not hazards_by_tier.has(h.tier):
-			hazards_by_tier[h.tier] = []
-		hazards_by_tier[h.tier].append(h)
-		if h.id != "":
-			hazards_by_id[h.id] = h
-
-
 func _register_relic(res: Resource) -> void:
 	if res is RelicData:
 		var r: RelicData = res
@@ -124,14 +111,6 @@ func get_treasures_for_tier(tier: int) -> Array:
 func get_event_for_tier(tier: int) -> EventData:
 	var actual_tier := _nearest_available_tier(events_by_tier, tier)
 	var pool: Array = events_by_tier.get(actual_tier, [])
-	if pool.is_empty():
-		return null
-	return pool[randi() % pool.size()]
-
-
-func get_hazard_for_tier(tier: int) -> HazardData:
-	var actual_tier := _nearest_available_tier(hazards_by_tier, tier)
-	var pool: Array = hazards_by_tier.get(actual_tier, [])
 	if pool.is_empty():
 		return null
 	return pool[randi() % pool.size()]

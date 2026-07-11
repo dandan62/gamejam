@@ -60,8 +60,8 @@ static func _best_forward(map_graph: MapGraph, candidates: Array) -> int:
 				score = 1
 			MapNodeDef.TileType.EMPTY:
 				score = 0
-			MapNodeDef.TileType.HAZARD:
-				score = -2
+			MapNodeDef.TileType.BRIDGE:
+				score = 0
 		if score > best_score:
 			best_score = score
 			best_id = node_id
@@ -74,8 +74,20 @@ static func choose_treasure_action(player: PlayerState, treasure_data: TreasureD
 	return "ignore"
 
 
-static func choose_relic_action() -> String:
-	return "pick_up"
+static func choose_relic_action(player: PlayerState, relic_data: RelicData) -> String:
+	if relic_data != null and player.can_pick_up_relic(relic_data):
+		return "pick_up"
+	return "ignore"
+
+
+## お宝を2個以上抱えている(=すでに稼げている)なら、追ってくる他プレイヤーを妨害するため
+## 橋を破壊する。そうでなければ自分がまだ使うかもしれないので残しておく。
+## If carrying 2+ treasures (already has something to protect), destroys the bridge behind it
+## to slow down pursuing players. Otherwise leaves it intact in case it needs the route again.
+static func choose_bridge_action(player: PlayerState) -> String:
+	if player.carried_treasures.size() >= 2:
+		return "destroy_bridge"
+	return "keep_bridge"
 
 
 static func choose_event(event: EventData) -> String:

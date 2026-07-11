@@ -7,12 +7,14 @@ class_name MapGraph
 var definition: MapDefinition
 var node_by_id: Dictionary = {}       # int -> MapNodeDef
 var backward_map: Dictionary = {}     # int -> Array[int]
+var broken_bridges: Dictionary = {}   # int -> true, node_ids of destroyed BRIDGE tiles
 
 
 func setup(map_definition: MapDefinition) -> void:
 	definition = map_definition
 	node_by_id.clear()
 	backward_map.clear()
+	broken_bridges.clear()
 	for node in definition.nodes:
 		node_by_id[node.id] = node
 	for node in definition.nodes:
@@ -20,6 +22,17 @@ func setup(map_definition: MapDefinition) -> void:
 			if not backward_map.has(next_id):
 				backward_map[next_id] = []
 			backward_map[next_id].append(node.id)
+
+
+## 橋マスを破壊済みにする。以後get_forward_ids/get_backward_idsの候補から除外され、誰も通れなくなる。
+## Marks a bridge tile as destroyed. From then on it's excluded from get_forward_ids/get_backward_ids
+## candidates, so no one can pass through it anymore.
+func break_bridge(node_id: int) -> void:
+	broken_bridges[node_id] = true
+
+
+func is_bridge_broken(node_id: int) -> bool:
+	return broken_bridges.get(node_id, false)
 
 
 func get_all_nodes() -> Array:
@@ -34,11 +47,12 @@ func get_forward_ids(node_id: int) -> Array:
 	var node: MapNodeDef = get_node(node_id)
 	if node == null:
 		return []
-	return node.forward_connections
+	return node.forward_connections.filter(func(id): return not is_bridge_broken(id))
 
 
 func get_backward_ids(node_id: int) -> Array:
-	return backward_map.get(node_id, [])
+	var ids: Array = backward_map.get(node_id, [])
+	return ids.filter(func(id): return not is_bridge_broken(id))
 
 
 func has_forward(node_id: int) -> bool:
