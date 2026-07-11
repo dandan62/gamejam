@@ -4,7 +4,7 @@ class_name MapTextLoader
 ## data/maps/*.txt を読み込みMapDefinitionを構築するテキストマップローダー。
 ##
 ## フォーマット：depth0から順に「マス行」「接続行」を交互に並べる（最後はマス行で終わる）。
-##   マス行   : 1文字=1レーン。 S=スタート n=何もない t=お宝 e=イベント h=妨害 r=遺物 .(ピリオド)=そのレーンにマスなし
+##   マス行   : 1文字=1レーン。 S=スタート n=何もない t=お宝 e=イベント h=橋 r=遺物 .(ピリオド)=そのレーンにマスなし
 ##   接続行   : 空行なら「隣接レーン同士を自動接続」。
 ##              手動指定する場合は "元レーン:先レーン,先レーン,..." をスペース区切りで列挙。
 ##              例) "0:0,1,2,3,4" は深度0の0番レーンが次の深度の0〜4番レーン全てに繋がる。
@@ -13,7 +13,7 @@ class_name MapTextLoader
 ## Text-based map loader that reads data/maps/*.txt and builds a MapDefinition.
 ##
 ## Format: starting at depth 0, alternate "tile lines" and "connector lines" (ends on a tile line).
-##   tile line     : 1 character = 1 lane. S=start n=empty t=treasure e=event h=hazard r=relic .(dot)=no lane here
+##   tile line     : 1 character = 1 lane. S=start n=empty t=treasure e=event h=bridge r=relic .(dot)=no lane here
 ##   connector line: a blank line means "auto-connect adjacent lanes."
 ##                   To connect manually, list "sourceLane:targetLane,targetLane,..." separated by spaces.
 ##                   e.g. "0:0,1,2,3,4" connects lane 0 at depth 0 to all lanes 0-4 at the next depth.
@@ -24,7 +24,7 @@ const TILE_CHARS := {
 	"n": 1, # MapNodeDef.TileType.EMPTY
 	"t": 2, # MapNodeDef.TileType.TREASURE
 	"e": 3, # MapNodeDef.TileType.EVENT
-	"h": 4, # MapNodeDef.TileType.HAZARD
+	"h": 4, # MapNodeDef.TileType.BRIDGE
 	"r": 5, # MapNodeDef.TileType.RELIC
 }
 const GAP_CHAR := "."

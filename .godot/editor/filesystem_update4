@@ -1,6 +1,6 @@
-res://scripts/core/StatIcons.gd
-res://scripts/data_models/BuffData.gd
+res://scenes/ui/ActionPanel.gd
+res://scenes/ui/HUD.gd
+res://scripts/core/TurnManager.gd
+res://scripts/data_models/RelicData.gd
+res://scripts/entities/CPUAI.gd
 res://scripts/entities/PlayerState.gd
-res://scenes/Main.tscn
-res://data/relics/tier1/sturdy_backpack.tres
-res://data/relics/tier2/lantern_core.tres

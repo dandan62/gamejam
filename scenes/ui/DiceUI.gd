@@ -22,6 +22,7 @@ func _ready() -> void:
 	add_child(vbox)
 	dice3d = Dice3D.new()
 	vbox.add_child(dice3d)
+	vbox.add_child(_build_tile_legend())
 	result_label = Label.new()
 	result_label.text = "Choose your Light spend, then roll"
 	vbox.add_child(result_label)
@@ -37,6 +38,25 @@ func _ready() -> void:
 		btn.pressed.connect(func(): option_chosen.emit(option))
 		vbox.add_child(btn)
 		option_buttons.append(btn)
+
+
+## 各マス種別の色と役割を一覧にした凡例。ダイスの下、盤面を見なくてもマスの意味が
+## わかるように表示する。
+## A legend listing each tile type's color and role. Shown below the dice so tile meanings
+## are readable without having to cross-reference the board.
+func _build_tile_legend() -> Control:
+	var grid := GridContainer.new()
+	grid.columns = 2
+	for tile_type in TileIcons.ALL_TYPES:
+		var swatch := ColorRect.new()
+		swatch.custom_minimum_size = Vector2(16, 16)
+		swatch.color = TileIcons.color_for(tile_type)
+		grid.add_child(swatch)
+
+		var label := Label.new()
+		label.text = "%s - %s" % [TileIcons.label_for(tile_type), TileIcons.description_for(tile_type)]
+		grid.add_child(label)
+	return grid
 
 
 func show_result(option: int, die: int, backpack_space: int, movement: int) -> void:

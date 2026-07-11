@@ -96,19 +96,15 @@ func _tile_color(node: MapNodeDef) -> Color:
 		tile_type = MapNodeDef.TileType.EMPTY
 
 	match tile_type:
-		MapNodeDef.TileType.START:
-			return Color(0.85, 0.85, 0.9)
 		MapNodeDef.TileType.TREASURE:
 			var value: int = GameManager.spawner.treasure_by_node[node.id]["value"]
 			return _treasure_color_for_value(value)
-		MapNodeDef.TileType.EVENT:
-			return Color(0.3, 0.6, 0.95)
-		MapNodeDef.TileType.HAZARD:
-			return Color(0.85, 0.25, 0.25)
-		MapNodeDef.TileType.RELIC:
-			return Color(0.65, 0.35, 0.85)
+		MapNodeDef.TileType.BRIDGE:
+			if map_graph.is_bridge_broken(node.id):
+				return TileIcons.BRIDGE_BROKEN_COLOR
+			return TileIcons.BRIDGE_COLOR
 		_:
-			return Color(0.6, 0.6, 0.65)
+			return TileIcons.color_for(tile_type)
 
 
 func _treasure_color_for_value(value: int) -> Color:

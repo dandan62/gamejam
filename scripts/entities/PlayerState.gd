@@ -17,6 +17,7 @@ var current_node_id: int = 0
 var status: Status = Status.ACTIVE
 
 var carried_treasures: Array = []   # Array of {data: TreasureData, value: int}
+var carried_relics: Array = []      # Array[RelicData] -- occupies weight, never removed (not even on return/elimination)
 var permanent_buffs: Array = []     # Array[BuffData], from permanent treasure buffs + relics
 var banked_score: int = 0
 var next_treasure_multiplier: float = 1.0
@@ -50,11 +51,21 @@ func get_total_weight() -> int:
 	for entry in carried_treasures:
 		var data: TreasureData = entry["data"]
 		total += data.weight
+	for relic in carried_relics:
+		total += relic.weight
 	return total
 
 
+func can_carry_weight(extra_weight: int) -> bool:
+	return get_total_weight() + extra_weight <= get_weight_capacity()
+
+
 func can_pick_up(treasure_data: TreasureData) -> bool:
-	return get_total_weight() + treasure_data.weight <= get_weight_capacity()
+	return can_carry_weight(treasure_data.weight)
+
+
+func can_pick_up_relic(relic_data: RelicData) -> bool:
+	return can_carry_weight(relic_data.weight)
 
 
 func add_permanent_buffs_from(buffs: Array) -> void:
@@ -63,14 +74,20 @@ func add_permanent_buffs_from(buffs: Array) -> void:
 			permanent_buffs.append(b)
 
 
-## 遺物のバフは duration の指定に関わらず、拾った時点で常に永続として付与される。
+## 遺物はスコアの無いお宝として carried_relics に入り、重量を占有し続ける
+## （bank_carried_treasures/lose_all_carried_treasuresの対象外なので、帰還しても脱落しても消えない）。
+## バフは duration の指定に関わらず、拾った時点で常に永続として付与される。
 ## MAX_HP/MAX_LIGHTは上限そのものを引き上げる特殊枠のため、バフリストに積まず
 ## その場でmax_hp/max_light（と現在値）を直接加算する。
-## A relic's buffs are always granted as permanent the moment it's picked up, regardless of its duration setting.
-## MAX_HP/MAX_LIGHT are a special case that raise the cap itself, so instead of being pushed onto the
-## buff list they directly increment max_hp/max_light (and the current value) on the spot.
-func add_relic_buffs(buffs: Array) -> void:
-	for b in buffs:
+## Relics go into carried_relics as scoreless treasure and permanently occupy weight capacity
+## (they're outside bank_carried_treasures/lose_all_carried_treasures, so they survive both
+## returning to the surface and elimination). Their buffs are always granted as permanent the
+## moment they're picked up, regardless of the buff's own duration setting. MAX_HP/MAX_LIGHT are
+## a special case that raise the cap itself, so instead of being pushed onto the buff list they
+## directly increment max_hp/max_light (and the current value) on the spot.
+func pick_up_relic(data: RelicData) -> void:
+	carried_relics.append(data)
+	for b in data.buffs:
 		if b.stat == BuffData.Stat.MAX_HP:
 			max_hp += b.amount
 			hp += b.amount

@@ -114,15 +114,15 @@ func choose_movement_option(option: int) -> void:
 
 ## 現在地から1マスだけ先の候補を、前進・後退の両方向まとめて提示する。
 ## 方向はターン開始時に固定するのではなく、1マス進むごとに毎回選び直せる
-## （前進候補と後退候補を合わせて1つならCPU/自動で即決定、複数なら
-## （人間なら盤面クリック、CPUならCPUAIで）選ばせる）。候補が無い
-## （前後とも末端）場合はそこで移動を打ち切ってターンを終える。
+## （候補が1つだけでも自動決定はせず、人間なら盤面クリック、CPUならCPUAIで
+## 明示的に選ばせる）。候補が無い（前後とも末端、または橋が壊れていて通れない）
+## 場合はそこで移動を打ち切ってターンを終える。
 ## Presents the candidates exactly one tile ahead in both directions combined.
 ## Direction is no longer locked in at the start of the turn -- it can be chosen
-## again on every single step (if there's only one candidate overall it's chosen
-## automatically; with several, the player picks -- map click for humans, CPUAI
-## for CPU). If there are no candidates in either direction, movement stops here
-## and the turn ends.
+## again on every single step (even with only one candidate, it's never auto-picked --
+## a human clicks the map, a CPU decides explicitly via CPUAI). If there are no
+## candidates in either direction (dead end, or the only bridge is broken), movement
+## stops here and the turn ends.
 func _advance_one_step() -> void:
 	var player := GameManager.get_current_player()
 	var map_graph: MapGraph = GameManager.map_graph
@@ -138,9 +138,7 @@ func _advance_one_step() -> void:
 	state = State.WAITING_STEP
 	path_choices_ready.emit(player, forward_ids, backward_ids)
 
-	if candidates.size() == 1:
-		choose_path(candidates[0])
-	elif player.is_cpu:
+	if player.is_cpu:
 		choose_path(CPUAI.choose_path(map_graph, player, forward_ids, backward_ids))
 
 
@@ -192,9 +190,9 @@ func _resolve_tile(player: PlayerState) -> void:
 			if GameManager.spawner.has_available_relic(node.id):
 				state = State.WAITING_TILE_ACTION
 				var relic: RelicData = GameManager.spawner.relic_by_node[node.id]["data"]
-				tile_action_needed.emit(player, node, {"kind": "relic", "data": relic})
+				tile_action_needed.emit(player, node, {"kind": "relic", "data": relic, "can_pick_up": player.can_pick_up_relic(relic)})
 				if player.is_cpu:
-					choose_tile_action(CPUAI.choose_relic_action())
+					choose_tile_action(CPUAI.choose_relic_action(player, relic))
 			else:
 				_after_tile_resolved(player)
 		MapNodeDef.TileType.EVENT:
@@ -209,19 +207,16 @@ func _resolve_tile(player: PlayerState) -> void:
 			event_choice_needed.emit(player, event)
 			if player.is_cpu:
 				choose_event(CPUAI.choose_event(event))
-		MapNodeDef.TileType.HAZARD:
-			var hazard: HazardData = DataLoader.hazards_by_id.get(node.fixed_hazard_id, null)
-			if hazard == null:
-				hazard = DataLoader.get_hazard_for_tier(TierSelector.pick_tier(node.depth))
-			if hazard != null:
-				_apply_effect(player, hazard.effect)
-				effect_applied.emit(player, hazard.description)
-			_after_tile_resolved(player)
+		MapNodeDef.TileType.BRIDGE:
+			state = State.WAITING_TILE_ACTION
+			tile_action_needed.emit(player, node, {"kind": "bridge"})
+			if player.is_cpu:
+				choose_tile_action(CPUAI.choose_bridge_action(player))
 		_:
 			_after_tile_resolved(player)
 
 
-## action: "pick_up" | "ignore"
+## action: "pick_up" | "ignore" | "destroy_bridge" | "keep_bridge"
 func choose_tile_action(action: String) -> void:
 	if state != State.WAITING_TILE_ACTION:
 		return
@@ -235,8 +230,13 @@ func choose_tile_action(action: String) -> void:
 				var entry: Dictionary = GameManager.spawner.take_treasure(node.id)
 				player.pick_up_treasure(entry["data"], entry["value"])
 		elif node.tile_type == MapNodeDef.TileType.RELIC:
-			var relic: RelicData = GameManager.spawner.take_relic(node.id)
-			player.add_relic_buffs(relic.buffs)
+			var preview: RelicData = GameManager.spawner.relic_by_node[node.id]["data"]
+			if player.can_pick_up_relic(preview):
+				var relic: RelicData = GameManager.spawner.take_relic(node.id)
+				player.pick_up_relic(relic)
+	elif action == "destroy_bridge" and node.tile_type == MapNodeDef.TileType.BRIDGE:
+		var map_graph: MapGraph = GameManager.map_graph
+		map_graph.break_bridge(node.id)
 
 	_after_tile_resolved(player)
 

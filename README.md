@@ -7,7 +7,7 @@ then choose when to turn back before their HP or Light runs out. Treasure only c
 score once you carry it back to the surface — die or run out of light on the way and you lose
 whatever you're still holding.
 
-The whole game is **data-driven**: maps, treasures, events, hazards and relics all live as individual
+The whole game is **data-driven**: maps, treasures, events and relics all live as individual
 files under `data/`, so new content can be added or tuned without touching any code.
 
 ## Requirements & running　💻
@@ -28,14 +28,13 @@ deep_abiss/
     maps/*.txt                 # map layouts (text format, see below)
     treasures/tierN/*.tres
     events/tierN/*.tres
-    hazards/tierN/*.tres
     relics/tierN/*.tres
   scenes/
     Main.gd                    # root: builds the whole UI tree, wires TurnManager signals
     Board.gd                   # draws the map graph + tokens, handles tile clicks
     ui/
       HUD.gd, SegmentGauge.gd  # per-player HP/Light/Action gauges + carried-treasure icons
-      DiceUI.gd, Dice3D.gd     # roll button + 3D dice visual
+      DiceUI.gd, Dice3D.gd     # roll button + 3D dice visual + a tile-type legend below the dice
       ActionPanel.gd           # pick up / ignore / discard prompt
       EventPopup.gd            # 2-choice event prompt
       GameOverScreen.gd        # final ranking
@@ -46,14 +45,16 @@ deep_abiss/
     core/
       TurnManager.gd           # the turn state machine (see below)
       DiceRoller.gd            # 2d6 roll
-      TierSelector.gd          # depth -> tier weighted random pick
+      TierSelector.gd          # depth -> tier band lookup
       TreasureSpawner.gd       # rolls treasure/relic contents once per game, per tile
+      StatIcons.gd             # label+icon strings for HP/Light/Score/etc buff display
+      TileIcons.gd             # color/label/description per tile type, shared by Board + the dice legend
     map/
       MapGraph.gd              # runtime adjacency (forward/backward) built from a MapDefinition
       MapTextLoader.gd         # parses data/maps/*.txt into a MapDefinition
     data_models/                # plain Resource (class_name) definitions, one per content type
       MapDefinition.gd, MapNodeDef.gd
-      TreasureData.gd, EventData.gd, HazardData.gd, RelicData.gd
+      TreasureData.gd, EventData.gd, RelicData.gd
       EffectData.gd, BuffData.gd
     entities/
       PlayerState.gd           # HP/Light/weight/carried treasure/status for one player
@@ -70,16 +71,22 @@ A turn (`TurnManager.gd`) goes:
 2. **Step** — move one tile at a time until movement points run out or there's nowhere left to go.
    At **every single tile**, the game offers both the forward (deeper) and backward (toward the
    surface) neighbors as candidates together — direction is **not** locked in for the whole turn, it's
-   re-chosen at each step. Humans click a highlighted node on the board (forward = white glow,
-   backward = blue glow); CPU decides via `CPUAI.choose_path()`.
+   re-chosen at each step, and it's **never auto-picked even when there's only one candidate**: a
+   human always clicks the highlighted node on the board (forward = white glow, backward = blue glow),
+   CPU always decides explicitly via `CPUAI.choose_path()`.
 3. **Resolve the tile** you land on:
    - `EMPTY` — ignore, or discard one carried treasure.
    - `TREASURE` — pick up (only if it fits under your weight capacity) or ignore. Picking up applies
      the treasure's HP damage and any `WHILE_HELD`/`PERMANENT` buffs immediately.
    - `EVENT` — a 2-choice prompt; each choice applies an `EffectData`.
-   - `HAZARD` — no choice, its `EffectData` is applied automatically.
-   - `RELIC` — pick up or ignore; picking up grants its buffs permanently on the spot (relics are never
-     lost, even on elimination).
+   - `BRIDGE` — whoever crosses it chooses to destroy it or leave it. Destroying it makes that tile
+     impassable for **everyone** (including yourself) for the rest of the game — it's simply excluded
+     from `MapGraph.get_forward_ids`/`get_backward_ids` from then on. Leaving it intact means the next
+     player to cross gets the same choice again.
+   - `RELIC` — behaves like a scoreless treasure: pick up (only if it fits under your weight capacity)
+     or ignore. Picking up grants its buffs permanently on the spot and puts it in `carried_relics`,
+     which occupies weight capacity forever — unlike `carried_treasures`, it's never cleared, not on
+     banking at a return, not on elimination.
    - Already-claimed `TREASURE`/`RELIC` tiles behave like `EMPTY`.
 4. **Return** — if a backward step lands you on the start node, your carried treasures' values are
    banked into `banked_score`, Light refills to max, and your status becomes `RETURNED`. This is
@@ -105,10 +112,10 @@ Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
 - **`GameManager`** (autoload) owns the player list, current turn index, round number, the `MapGraph`
   and the `TreasureSpawner`. It has no turn logic itself — `advance_to_next_player()` just rotates to
   the next non-`ELIMINATED` player, incrementing `round_number` once everyone's had a turn.
-- **`DataLoader`** (autoload) recursively walks `data/treasures`, `data/events`, `data/hazards`,
-  `data/relics` at startup, loading every `.tres` it finds into `*_by_tier` (and `*_by_id` for
-  events/hazards/relics) dictionaries. It also loads `data/maps/*.txt` — **non-recursively**, so map
-  files must sit directly in that folder, not in subfolders.
+- **`DataLoader`** (autoload) recursively walks `data/treasures`, `data/events`, `data/relics` at
+  startup, loading every `.tres` it finds into `*_by_tier` (and `*_by_id` for events/relics)
+  dictionaries. It also loads `data/maps/*.txt` — **non-recursively**, so map files must sit directly
+  in that folder, not in subfolders.
 - **`TurnManager`** is a `Node` under `Main` and is the only place turn state lives (`State` enum:
   `IDLE, WAITING_ROLL, WAITING_STEP, WAITING_TILE_ACTION, WAITING_EVENT_CHOICE, GAME_OVER`). It emits
   signals for every observable event (`dice_rolled`, `movement_changed`, `path_choices_ready`,
@@ -118,16 +125,20 @@ Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
   `choose_tile_action()` / `choose_event()`; on a CPU turn it calls those same functions itself right
   after entering each state.
 - **`MapGraph`** builds forward/backward adjacency from a `MapDefinition`'s flat node list (backward
-  edges are derived automatically from everyone's `forward_connections`).
+  edges are derived automatically from everyone's `forward_connections`). It also tracks which
+  `BRIDGE` tiles have been destroyed (`break_bridge`/`is_bridge_broken`) and filters them out of every
+  `get_forward_ids`/`get_backward_ids` result, so a broken bridge is transparently unreachable from any
+  neighboring tile for the rest of the game.
 - **`TreasureSpawner`** rolls the actual contents of every `TREASURE`/`RELIC` tile exactly once at game
   start (tier is picked by `TierSelector.pick_tier(depth)`, then an item is picked at random from that
   tier's pool, and treasure value is rolled within the item's `min_value`/`max_value`). Once taken, a
   tile stays empty for the rest of the game.
 - **`CPUAI`** is a stateless heuristic: it retreats if there's nowhere to go forward, if Light is low
   (`<= 2`) while carrying anything, or once it's carrying 3+ treasures; otherwise it advances toward
-  whichever forward candidate looks best (`TREASURE` > `RELIC` > `EVENT` > `EMPTY` > `HAZARD`). Tile
+  whichever forward candidate looks best (`TREASURE` > `RELIC` > `EVENT` > `EMPTY` = `BRIDGE`). Tile
   actions are simple (always take relics, take treasure only if it fits, always ignore empty tiles,
-  score event choices by hp/light/score deltas).
+  score event choices by hp/light/score deltas, destroy a bridge behind it once it's carrying 2+
+  treasures — to slow down anyone chasing the same route — and otherwise leave it standing).
 
 ## Authoring a map (`data/maps/*.txt`)　🌎
 
@@ -140,7 +151,7 @@ and ending on a tile line, one depth per pair:
 | `n`       | Empty       |
 | `t`       | Treasure    |
 | `e`       | Event       |
-| `h`       | Hazard      |
+| `h`       | Bridge      |
 | `r`       | Relic       |
 | `.`       | No tile in this lane at this depth |
 
@@ -192,10 +203,12 @@ sync by convention, but only the field matters at runtime.
 |---|---|---|
 | `TreasureData` | `id`, `display_name`, `tier`, `min_value`, `max_value`, `hp_damage`, `weight`, `icon` (Texture2D), `buffs: Array[BuffData]` | Value is rolled once per placement between `min_value`/`max_value`. `icon` is shown in the HUD's carried-treasure row; leave it unset and the HUD falls back to a colored square with the item's first letter. |
 | `EventData` | `id`, `tier`, `description`, `choice_a_text`, `choice_a_effect`, `choice_b_text`, `choice_b_effect` | Sits on `EVENT` tiles; presents a 2-choice prompt. |
-| `HazardData` | `id`, `tier`, `description`, `effect` | Sits on `HAZARD` tiles; its `effect` applies automatically, no player choice. |
-| `RelicData` | `id`, `display_name`, `tier`, `description`, `buffs: Array[BuffData]` | Sits on `RELIC` tiles; buffs are granted permanently the instant it's picked up (never lost, even on elimination). |
-| `EffectData` | `description`, `hp_delta`, `light_delta`, `score_delta`, `apply_buff` (BuffData), `drop_treasure_count`, `next_treasure_multiplier` | Generic effect payload shared by events and hazards. A field left at its default (`0` / `1.0` / `null`) is a no-op — you only set the fields you actually want to change. |
-| `BuffData` | `stat` (`MOVE` / `WEIGHT` / `LIGHT`), `amount`, `duration` (`PERMANENT` / `WHILE_HELD`) | `WHILE_HELD` buffs from carried treasure only apply as long as you still hold that treasure; relic buffs are always granted `PERMANENT` regardless of the field's value. |
+| `RelicData` | `id`, `display_name`, `tier`, `description`, `weight`, `buffs: Array[BuffData]` | Sits on `RELIC` tiles; behaves like a scoreless treasure — occupies weight capacity in `PlayerState.carried_relics` forever, and its buffs are granted permanently the instant it's picked up (never lost, even on elimination). |
+| `EffectData` | `description`, `hp_delta`, `light_delta`, `score_delta`, `apply_buff` (BuffData), `drop_treasure_count`, `next_treasure_multiplier` | Generic effect payload used by events. A field left at its default (`0` / `1.0` / `null`) is a no-op — you only set the fields you actually want to change. |
+| `BuffData` | `stat` (`MOVE` / `WEIGHT` / `LIGHT` / `MAX_HP` / `MAX_LIGHT`), `amount`, `duration` (`PERMANENT` / `WHILE_HELD`) | `WHILE_HELD` buffs from carried treasure only apply as long as you still hold that treasure; relic buffs are always granted `PERMANENT` regardless of the field's value. `MAX_HP`/`MAX_LIGHT` are relic-only: `PlayerState.add_relic_buffs` special-cases them to raise the cap (and current value) directly instead of stacking as a dynamic bonus. |
+
+`BRIDGE` tiles have no data file of their own — the "destroy or leave it" choice and its consequences
+are pure code, handled by `TurnManager._resolve_tile`/`choose_tile_action` and `MapGraph.break_bridge`.
 
 Example `.tres` (an event, `data/events/tier1/hidden_draft.tres`):
 
@@ -230,14 +243,13 @@ want in the Godot editor, edit the fields in the Inspector, and place the copy u
 
 ### Tier selection (`TierSelector.gd`)
 
-Treasure/event/hazard tiers aren't read from the map file — they're rolled at runtime from tile
-**depth** via `TierSelector.pick_tier(depth)`:
+Treasure/event tiers aren't read from the map file — they're derived at runtime from tile **depth**
+via `TierSelector.pick_tier(depth)`, a fixed depth-band mapping:
 
-- depth 1–3 → always tier 1
-- depth 4–6 → tier 1 or 2, 50/50
-- depth 7+ → every 3 depths, a "primary" tier (starting at 3, incrementing) gets 50% weight, and the
-  tiers immediately above/below it get 25% each; once the primary tier hits the cap (`MAX_TIER = 7`),
-  the missing side's weight folds back into the primary tier.
+- depth 1–6 → tier 1
+- depth 7–12 → tier 2
+- depth 13–18 → tier 3
+- depth 19–20 → tier 4
 
 `RELIC` tiles use the same `pick_tier(depth)` call independently.
 
@@ -247,10 +259,10 @@ neighboring tier.
 
 ### A couple of things that look wired up but aren't (yet)
 
-- `MapNodeDef.fixed_event_id` / `fixed_hazard_id` **are** honored — set one to force a specific `EVENT`/
-  `HAZARD` tile to always use that exact id instead of a random tier roll (falls back to random if the
-  id isn't found). `fixed_relic_id`, however, is **not read anywhere** — `RELIC` tiles are always
-  randomly rolled by tier via `TreasureSpawner`, regardless of this field.
+- `MapNodeDef.fixed_event_id` **is** honored — set it to force a specific `EVENT` tile to always use
+  that exact id instead of a random tier roll (falls back to random if the id isn't found).
+  `fixed_relic_id`, however, is **not read anywhere** — `RELIC` tiles are always randomly rolled by
+  tier via `TreasureSpawner`, regardless of this field.
 - `MapNodeDef.tier` (the per-node field) is likewise **never read** — tier is always derived from the
   node's `depth` through `TierSelector`, not from this field.
 
