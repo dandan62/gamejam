@@ -84,9 +84,15 @@ func _start_turn(player: PlayerState) -> void:
 ## option: 1〜3。移動力自体は変わらず(ダイス1個＋バックパックの空きのまま)、この値は
 ## 「見える範囲(マス数)」と「ターン終了時のライト消費量」だけを決める
 ## （大きく選ぶほど遠くまで見えるが、ライトも多く減る）。
+## バックパックの空きが移動力に与えるボーナスは最大5まで（WEIGHTバフで際限なく伸びないように）。
 ## option: 1-3. Movement itself is unaffected (still 1 die roll + empty backpack space);
 ## this value only decides the visible range (in tiles) and the Light spent at end of turn
 ## (a bigger pick sees further but costs more Light).
+## The empty-backpack-space bonus to movement is capped at 5 (so WEIGHT buffs can't inflate it
+## without limit).
+const MAX_BACKPACK_MOVE_BONUS := 5
+
+
 func choose_movement_option(option: int) -> void:
 	if state != State.WAITING_MOVE_CHOICE:
 		return
@@ -97,6 +103,7 @@ func choose_movement_option(option: int) -> void:
 
 	var die := DiceRoller.roll_1d6()
 	var backpack_space := player.get_weight_capacity() - player.get_total_weight()
+	backpack_space = min(backpack_space, MAX_BACKPACK_MOVE_BONUS)
 	_movement = die + backpack_space + player.get_stat_bonus(BuffData.Stat.MOVE)
 	_movement = max(_movement, 0)
 	movement_option_chosen.emit(player, option, die, backpack_space, _movement)
