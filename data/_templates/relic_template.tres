@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="RelicData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/RelicData.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data_models/BuffData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+stat = 0
+amount = 1
+
+[resource]
+script = ExtResource("1")
+id = "template_relic"
+display_name = "TEMPLATE Relic -- rename me"
+tier = 1
+description = "TEMPLATE -- describe what this relic does"
+weight = 1
+buffs = [SubResource("1")]

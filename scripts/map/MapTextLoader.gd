@@ -4,8 +4,10 @@ class_name MapTextLoader
 ## data/maps/*.txt を読み込みMapDefinitionを構築するテキストマップローダー。
 ##
 ## ファイルの先頭行が"#"で始まる場合、それはマス行ではなくオプション行として扱われる
-## （スペース区切りの "キー=値" を列挙。例: "#persist_tiles=true"）。省略した場合は全て既定値。
-##   persist_tiles=true : TREASURE/RELICが取得してもマスから消えず、何度でも拾えるようになる。
+## （スペース区切りの "キー=値" を列挙。例: "#persist_tiles=true background=イラスト32.png"）。
+## 省略した場合は全て既定値。
+##   persist_tiles=true  : TREASURE/RELICが取得してもマスから消えず、何度でも拾えるようになる。
+##   background=ファイル名: data/maps/ 内の画像ファイルをBoardの背景として使う（スペース不可）。
 ##
 ## フォーマット：（オプション行の次から）depth0から順に「マス行」「接続行」を交互に並べる
 ## （最後はマス行で終わる）。
@@ -18,10 +20,11 @@ class_name MapTextLoader
 ## Text-based map loader that reads data/maps/*.txt and builds a MapDefinition.
 ##
 ## If the file's first line starts with "#", it's an option line rather than a tile line
-## (space-separated "key=value" tokens, e.g. "#persist_tiles=true"). Omit it and everything
-## defaults.
+## (space-separated "key=value" tokens, e.g. "#persist_tiles=true background=イラスト32.png").
+## Omit it and everything defaults.
 ##   persist_tiles=true : TREASURE/RELIC tiles never disappear after being picked up and can be
 ##                         taken again and again.
+##   background=file    : uses an image file inside data/maps/ as Board's background (no spaces).
 ##
 ## Format (starting right after the option line, if any): starting at depth 0, alternate "tile
 ## lines" and "connector lines" (ends on a tile line).
@@ -121,6 +124,8 @@ static func _parse_options(map: MapDefinition, line: String) -> void:
 		match key:
 			"persist_tiles":
 				map.treasures_persist = value == "true"
+			"background":
+				map.background_image_path = "res://data/maps/" + value
 
 
 static func _find_node(nodes: Array, id: int) -> MapNodeDef:

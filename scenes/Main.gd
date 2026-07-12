@@ -20,7 +20,7 @@ func _ready() -> void:
 	add_child(scroll)
 
 	board = Board.new()
-	board.custom_minimum_size = Vector2(560, 1900)
+	board.custom_minimum_size = Board.CANVAS_SIZE
 	board.setup(GameManager.map_graph)
 	board.node_clicked.connect(_on_board_node_clicked)
 	scroll.add_child(board)
