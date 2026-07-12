@@ -1,6 +1,3 @@
-res://scenes/ui/ActionPanel.gd
-res://scenes/ui/HUD.gd
-res://scripts/core/TurnManager.gd
-res://scripts/data_models/RelicData.gd
-res://scripts/entities/CPUAI.gd
-res://scripts/entities/PlayerState.gd
+res://scenes/Main.tscn
+res://data/maps/map_01.txt
+res://scenes/Board.gd
