@@ -1,42 +1,42 @@
 #persist_tiles=true
 S
-0:0,1,2,3,4
-nnenn
-0:0, 1:1, 2:2, 3:3, 4:4
-nntrt
-0:0, 1:0, 2:0, 3:0, 4:0
-nn.n.
 
-tnnht
+n
 
-ehhtt
+r
 
-enrhn
+t
 
-nnene
+nn
+0:0, 1:1
+tn
+0:0, 1:1
+hn
 
-tnntt
+r
 
-nntee
+n
+0:0, 0:1, 0:2
+nnn
+0:0, 1:1, 2:2
+nhn
+0:0, 1:1, 2:2
+ntt
+0:0, 1:0
+t
 
-ttntt
+r
+0:0, 0:1
+hn
+0:0, 1:1, 1:2
+thn
+0:0, 1:1, 2:2
+ntn
+0:0, 1:1, 1:2, 2:2
+ttt
+0:0, 0:1, 1:1
+nh
 
-ethte
+n
 
-tthrn
-
-tnnrh
-
-tntet
-
-nettt
-
-thntt
-
-tnneh
-
-nnnte
-
-rreet
-
-trntt
+t
