@@ -67,7 +67,8 @@ Defaults: `HP = 3`, `Light = 5`, weight capacity `= 5`. All three can be modifie
 
 A turn (`TurnManager.gd`) goes:
 
-1. **Roll** — 2d6 + any `MOVE` buff bonus = movement points for this turn.
+1. **Roll** — 1d6 + empty backpack space (weight capacity minus carried weight, **capped at 5**) + any
+   `MOVE` buff bonus = movement points for this turn.
 2. **Step** — move one tile at a time until movement points run out or there's nowhere left to go.
    At **every single tile**, the game offers both the forward (deeper) and backward (toward the
    surface) neighbors as candidates together — direction is **not** locked in for the whole turn, it's
@@ -101,9 +102,16 @@ picking up where a fresh dive begins (full Light, whatever they'd already banked
 `ELIMINATED` players are skipped.
 
 **Game over** happens when either:
-- the round limit (`TurnManager.MAX_ROUNDS = 15`) is exceeded — anyone still `ACTIVE` (mid-dive) is
+- the round limit (`TurnManager.MAX_ROUNDS = 8`) is exceeded — anyone still `ACTIVE` (mid-dive) is
   force-eliminated (loses unreturned treasure) so the game can end cleanly, or
 - every player has been `ELIMINATED`.
+
+Since hitting the round limit ends the game abruptly, two warnings kick in as it approaches:
+- `Board.gd` blinks the map's outer border red once 3 or fewer rounds remain
+  (`Board.set_remaining_rounds`, called from `Main._refresh_all`).
+- `Main.gd` overlays a fixed banner on top of the map reading "3 turns left" / "2 turns left" /
+  "last turn" — shown only for the window between a turn starting and that player rolling the dice
+  (`_update_turn_countdown`, set in `_on_turn_started`, cleared in `_on_movement_option_chosen`).
 
 Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
 
@@ -148,7 +156,7 @@ parsing starts. Currently the only recognized key is:
 
 | Option | Effect |
 |---|---|
-| `persist_tiles=true` | `TREASURE`/`RELIC` tiles on this map never disappear after being picked up — they stay pickable forever instead of becoming `EMPTY` once taken. Omit the option line entirely (or leave it `false`) for the original one-time-only behavior. |
+| `persist_tiles=true` | `TREASURE`/`RELIC` tiles on this map never become `EMPTY` after being picked up. Instead, the instant one is taken its contents are re-rolled from the same tier on the spot, so the tile stays pickable forever but with a **different item each time** rather than the same one repeating. Omit the option line entirely (or leave it `false`) for the original one-time-only behavior. |
 
 e.g. a map starting with `#persist_tiles=true` followed by the normal tile/connector lines.
 

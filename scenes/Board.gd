@@ -17,11 +17,20 @@ var node_positions: Dictionary = {}
 var highlighted_forward: Array = []
 var highlighted_backward: Array = []
 var vision_radius: int = 0
+var remaining_rounds: int = -1  # -1 = unknown/not set yet -- no warning border drawn
 
 const NODE_RADIUS := 18.0
 const DEPTH_SPACING := 90.0
 const LANE_SPACING := 90.0
 const MARGIN := 60.0
+
+## 残りラウンドがこの数以下になると盤面の枠が赤く点滅する
+## （ゲームが突然終わるのをプレイヤーに事前に知らせるため）。
+## Once remaining rounds drops to this or below, the board's border blinks red (so the sudden
+## round-limit ending doesn't blindside players).
+const RED_WARNING_ROUNDS := 3
+const WARNING_BORDER_WIDTH := 6.0
+const BLINK_HZ := 2.0
 
 var player_colors := [Color(0.2, 0.75, 0.35), Color(0.25, 0.55, 0.95), Color(0.95, 0.55, 0.15)]
 
@@ -57,6 +66,20 @@ func set_highlighted(forward_ids: Array, backward_ids: Array) -> void:
 func set_vision_radius(radius: int) -> void:
 	vision_radius = radius
 	queue_redraw()
+
+
+## 残りラウンド数を更新する。赤点滅の範囲内にいる間は_processが継続的にqueue_redrawして
+## アニメーションさせる。
+## Updates the remaining-round count. While within the red-blink range, _process keeps calling
+## queue_redraw so the blink animates.
+func set_remaining_rounds(remaining: int) -> void:
+	remaining_rounds = remaining
+	queue_redraw()
+
+
+func _process(_delta: float) -> void:
+	if remaining_rounds >= 0 and remaining_rounds <= RED_WARNING_ROUNDS:
+		queue_redraw()
 
 
 ## ハイライト中のノードをクリックしたら node_clicked を発火する。
@@ -159,3 +182,18 @@ func _draw() -> void:
 		var base_pos: Vector2 = node_positions[p.current_node_id]
 		var offset := Vector2(cos(i * TAU / 3.0), sin(i * TAU / 3.0)) * 10.0
 		draw_circle(base_pos + offset, 7.0, player_colors[i % player_colors.size()])
+
+	_draw_round_warning_border()
+
+
+## 残りラウンドがRED_WARNING_ROUNDS以下になると、盤面の外枠を赤く点滅させて知らせる
+## （sin波で不透明度を揺らす）。
+## Once remaining rounds drops to RED_WARNING_ROUNDS or below, blinks the board's outer border
+## red to warn (opacity driven by a sine wave).
+func _draw_round_warning_border() -> void:
+	if remaining_rounds < 0 or remaining_rounds > RED_WARNING_ROUNDS:
+		return
+	var alpha: float = 0.35 + 0.65 * (0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * BLINK_HZ))
+	var color := Color(1.0, 0.1, 0.1, alpha)
+	var rect := Rect2(Vector2.ZERO, size).grow(-WARNING_BORDER_WIDTH * 0.5)
+	draw_rect(rect, color, false, WARNING_BORDER_WIDTH)
