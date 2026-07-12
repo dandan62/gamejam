@@ -136,14 +136,24 @@ Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
 - **`CPUAI`** is a stateless heuristic: it retreats if there's nowhere to go forward, if Light is low
   (`<= 2`) while carrying anything, or once it's carrying 3+ treasures; otherwise it advances toward
   whichever forward candidate looks best (`TREASURE` > `RELIC` > `EVENT` > `EMPTY` = `BRIDGE`). Tile
-  actions are simple (always take relics, take treasure only if it fits, always ignore empty tiles,
+  actions are simple (take a relic or treasure only if it fits under weight capacity, always ignore empty tiles,
   score event choices by hp/light/score deltas, destroy a bridge behind it once it's carrying 2+
   treasures — to slow down anyone chasing the same route — and otherwise leave it standing).
 
 ## Authoring a map (`data/maps/*.txt`)　🌎
 
-Parsed by `MapTextLoader.gd`. A map file alternates **tile lines** and **connector lines**, starting
-and ending on a tile line, one depth per pair:
+Parsed by `MapTextLoader.gd`. If the file's very first line starts with `#`, it's an **option
+line** instead of a tile line — space-separated `key=value` tokens, consumed before any depth
+parsing starts. Currently the only recognized key is:
+
+| Option | Effect |
+|---|---|
+| `persist_tiles=true` | `TREASURE`/`RELIC` tiles on this map never disappear after being picked up — they stay pickable forever instead of becoming `EMPTY` once taken. Omit the option line entirely (or leave it `false`) for the original one-time-only behavior. |
+
+e.g. a map starting with `#persist_tiles=true` followed by the normal tile/connector lines.
+
+After the option line (if present), a map file alternates **tile lines** and **connector lines**,
+starting and ending on a tile line, one depth per pair:
 
 | Tile char | Meaning     |
 |-----------|-------------|

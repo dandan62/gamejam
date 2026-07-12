@@ -2,17 +2,21 @@ extends RefCounted
 class_name TreasureSpawner
 
 ## ゲーム開始時にTREASURE/RELICマスへ中身を1回だけ抽選して割り当てる。
-## 誰かが取得すると taken=true になり、以後はEMPTY相当として扱われる。
+## 誰かが取得すると taken=true になり、以後はEMPTY相当として扱われる
+## （persist_tilesがtrueのマップでは taken にならず、何度でも拾える）。
 ## At game start, rolls contents for TREASURE/RELIC tiles exactly once.
-## Once someone picks it up, taken=true and the tile behaves like EMPTY from then on.
+## Once someone picks it up, taken=true and the tile behaves like EMPTY from then on
+## (on a map with persist_tiles=true, it never becomes taken and can be picked up repeatedly).
 
 var treasure_by_node: Dictionary = {}  # node_id -> {data: TreasureData, value: int, taken: bool}
 var relic_by_node: Dictionary = {}     # node_id -> {data: RelicData, taken: bool}
+var persist_tiles: bool = false
 
 
-func setup(map_graph: MapGraph) -> void:
+func setup(map_graph: MapGraph, persist_tiles: bool = false) -> void:
 	treasure_by_node.clear()
 	relic_by_node.clear()
+	self.persist_tiles = persist_tiles
 	for node in map_graph.get_all_nodes():
 		var map_node: MapNodeDef = node
 		if map_node.tile_type == MapNodeDef.TileType.TREASURE:
@@ -42,11 +46,13 @@ func has_available_relic(node_id: int) -> bool:
 
 func take_treasure(node_id: int) -> Dictionary:
 	var entry: Dictionary = treasure_by_node[node_id]
-	entry["taken"] = true
+	if not persist_tiles:
+		entry["taken"] = true
 	return entry
 
 
 func take_relic(node_id: int) -> RelicData:
 	var entry: Dictionary = relic_by_node[node_id]
-	entry["taken"] = true
+	if not persist_tiles:
+		entry["taken"] = true
 	return entry["data"]

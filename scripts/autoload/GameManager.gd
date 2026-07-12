@@ -25,7 +25,7 @@ func start_new_game(map_name: String = "") -> void:
 	map_graph.setup(map_def)
 
 	spawner = TreasureSpawner.new()
-	spawner.setup(map_graph)
+	spawner.setup(map_graph, map_def.treasures_persist)
 
 	_add_player(0, "Player 1", false, map_def.start_node_id)
 	_add_player(1, "Player 2", false, map_def.start_node_id)

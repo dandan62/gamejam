@@ -76,17 +76,17 @@ func _gui_input(event: InputEvent) -> void:
 			return
 
 
-const TREASURE_COLOR_LIGHT := Color(1.0, 0.95, 0.55)
-const TREASURE_COLOR_DARK := Color(0.5, 0.22, 0.02)
+const TREASURE_COLOR_LIGHT := Color(1.0, 1.0, 0.8)
+const TREASURE_COLOR_DARK := Color(1.0, 1.0, 0)
 const TREASURE_VALUE_BAND := 10
 const TREASURE_MAX_BAND := 6
 
 
 ## 取得済みのお宝/遺物マスは何もないマスと同じ見た目にする。
 ## お宝マスは中身を見なくても強さの目安がわかるよう、価値が10上がるごとに
-## 淡い黄色→濃い山吹色/こげ茶へ色が濃くなっていく。
+## 淡い黄色→濃い黄色へ色が濃くなっていく。
 ## Already-claimed treasure/relic tiles look the same as an empty tile.
-## Treasure tiles get darker every 10 points of value (pale yellow -> deep amber/brown),
+## Treasure tiles get darker every 10 points of value (pale yellow -> saturated yellow),
 ## so players get a strength hint without seeing the exact number.
 func _tile_color(node: MapNodeDef) -> Color:
 	var tile_type := node.tile_type

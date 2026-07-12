@@ -3,7 +3,12 @@ class_name MapTextLoader
 
 ## data/maps/*.txt を読み込みMapDefinitionを構築するテキストマップローダー。
 ##
-## フォーマット：depth0から順に「マス行」「接続行」を交互に並べる（最後はマス行で終わる）。
+## ファイルの先頭行が"#"で始まる場合、それはマス行ではなくオプション行として扱われる
+## （スペース区切りの "キー=値" を列挙。例: "#persist_tiles=true"）。省略した場合は全て既定値。
+##   persist_tiles=true : TREASURE/RELICが取得してもマスから消えず、何度でも拾えるようになる。
+##
+## フォーマット：（オプション行の次から）depth0から順に「マス行」「接続行」を交互に並べる
+## （最後はマス行で終わる）。
 ##   マス行   : 1文字=1レーン。 S=スタート n=何もない t=お宝 e=イベント h=橋 r=遺物 .(ピリオド)=そのレーンにマスなし
 ##   接続行   : 空行なら「隣接レーン同士を自動接続」。
 ##              手動指定する場合は "元レーン:先レーン,先レーン,..." をスペース区切りで列挙。
@@ -12,7 +17,14 @@ class_name MapTextLoader
 ##
 ## Text-based map loader that reads data/maps/*.txt and builds a MapDefinition.
 ##
-## Format: starting at depth 0, alternate "tile lines" and "connector lines" (ends on a tile line).
+## If the file's first line starts with "#", it's an option line rather than a tile line
+## (space-separated "key=value" tokens, e.g. "#persist_tiles=true"). Omit it and everything
+## defaults.
+##   persist_tiles=true : TREASURE/RELIC tiles never disappear after being picked up and can be
+##                         taken again and again.
+##
+## Format (starting right after the option line, if any): starting at depth 0, alternate "tile
+## lines" and "connector lines" (ends on a tile line).
 ##   tile line     : 1 character = 1 lane. S=start n=empty t=treasure e=event h=bridge r=relic .(dot)=no lane here
 ##   connector line: a blank line means "auto-connect adjacent lanes."
 ##                   To connect manually, list "sourceLane:targetLane,targetLane,..." separated by spaces.
@@ -28,6 +40,7 @@ const TILE_CHARS := {
 	"r": 5, # MapNodeDef.TileType.RELIC
 }
 const GAP_CHAR := "."
+const OPTION_PREFIX := "#"
 
 
 static func load_from_file(path: String) -> MapDefinition:
@@ -50,6 +63,10 @@ static func load_from_file(path: String) -> MapDefinition:
 
 	var map := MapDefinition.new()
 	map.map_name = path.get_file().get_basename()
+
+	if lines[0].begins_with(OPTION_PREFIX):
+		_parse_options(map, lines[0])
+		lines.remove_at(0)
 
 	var nodes: Array = []
 	var lane_ids_by_depth: Dictionary = {}
@@ -91,6 +108,19 @@ static func load_from_file(path: String) -> MapDefinition:
 
 	map.nodes = nodes
 	return map
+
+
+static func _parse_options(map: MapDefinition, line: String) -> void:
+	var body := line.substr(OPTION_PREFIX.length())
+	for token in body.split(" ", false):
+		var parts := token.split("=")
+		if parts.size() != 2:
+			continue
+		var key := parts[0].strip_edges()
+		var value := parts[1].strip_edges()
+		match key:
+			"persist_tiles":
+				map.treasures_persist = value == "true"
 
 
 static func _find_node(nodes: Array, id: int) -> MapNodeDef:
