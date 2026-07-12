@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EventData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data_models/EventData.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/data_models/EffectData.gd" id="2"]
+
+[sub_resource type="Resource" id="1"]
+script = ExtResource("2")
+description = "TEMPLATE -- flavor text shown after picking choice A"
+hp_delta = 0
+light_delta = 0
+score_delta = 0
+
+[sub_resource type="Resource" id="2"]
+script = ExtResource("2")
+description = "TEMPLATE -- flavor text shown after picking choice B"
+hp_delta = 0
+light_delta = 0
+score_delta = 0
+
+[resource]
+script = ExtResource("1")
+id = "template_event"
+tier = 1
+description = "TEMPLATE -- the prompt text shown to the player"
+choice_a_text = "TEMPLATE -- button text for choice A"
+choice_a_effect = SubResource("1")
+choice_b_text = "TEMPLATE -- button text for choice B"
+choice_b_effect = SubResource("2")

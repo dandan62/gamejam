@@ -5,10 +5,16 @@ class_name Board
 ## ハイライトされている(=現在選択可能な)ノードはクリックで選択できる。
 ## 盤面全体は黒で覆われており、現在の手番プレイヤーの現在地からvision_radiusホップ以内
 ## （set_vision_radiusで設定）のマスだけが見える（フォグ・オブ・ウォー）。
+## マス間の間隔はCANVAS_SIZE固定サイズいっぱいに広がるよう、そのマップの最大レーン数/深度から
+## 逆算する（背景イラストをCANVAS_SIZEの比率で作れば、マップが変わっても常にマス配置が
+## 背景に合う）。
 ## Draws the map's nodes, edges, and player tokens.
 ## Highlighted (= currently selectable) nodes can be chosen by clicking them.
 ## The whole board is covered in black; only tiles within vision_radius hops of the current
 ## turn's player position (set via set_vision_radius) are revealed (fog of war).
+## Tile spacing is derived from the map's own max lane count/depth so nodes always spread out to
+## fill the fixed CANVAS_SIZE (an illustration authored at CANVAS_SIZE's aspect ratio will line up
+## with the tile layout no matter which map is loaded).
 
 signal node_clicked(node_id: int)
 
@@ -18,11 +24,12 @@ var highlighted_forward: Array = []
 var highlighted_backward: Array = []
 var vision_radius: int = 0
 var remaining_rounds: int = -1  # -1 = unknown/not set yet -- no warning border drawn
+var background_texture: Texture2D = null
 
 const NODE_RADIUS := 18.0
-const DEPTH_SPACING := 90.0
-const LANE_SPACING := 90.0
 const MARGIN := 60.0
+const CANVAS_SIZE := Vector2(560, 1900)
+const BACKGROUND_BAND_PADDING := 80.0
 
 ## 残りラウンドがこの数以下になると盤面の枠が赤く点滅する
 ## （ゲームが突然終わるのをプレイヤーに事前に知らせるため）。
@@ -38,15 +45,29 @@ var player_colors := [Color(0.2, 0.75, 0.35), Color(0.25, 0.55, 0.95), Color(0.9
 func setup(graph: MapGraph) -> void:
 	map_graph = graph
 	_compute_positions()
+	background_texture = null
+	if map_graph.definition.background_image_path != "":
+		background_texture = load(map_graph.definition.background_image_path)
 	queue_redraw()
 
 
 func _compute_positions() -> void:
 	node_positions.clear()
+
+	var max_lane := 0
+	var max_depth := 0
 	for node in map_graph.get_all_nodes():
 		var n: MapNodeDef = node
-		var x := MARGIN + n.lane * LANE_SPACING
-		var y := MARGIN + n.depth * DEPTH_SPACING
+		max_lane = max(max_lane, n.lane)
+		max_depth = max(max_depth, n.depth)
+
+	var lane_spacing := (CANVAS_SIZE.x - MARGIN * 2.0) / max_lane if max_lane > 0 else 0.0
+	var depth_spacing := (CANVAS_SIZE.y - MARGIN * 2.0) / max_depth if max_depth > 0 else 0.0
+
+	for node in map_graph.get_all_nodes():
+		var n: MapNodeDef = node
+		var x := MARGIN + n.lane * lane_spacing
+		var y := MARGIN + n.depth * depth_spacing
 		node_positions[n.id] = Vector2(x, y)
 
 
@@ -136,6 +157,33 @@ func _treasure_color_for_value(value: int) -> Color:
 	return TREASURE_COLOR_LIGHT.lerp(TREASURE_COLOR_DARK, t)
 
 
+## 背景イラストのうち、見えている範囲(revealed)のノードのY座標帯だけを黒地の上に描画する。
+## フォグ・オブ・ウォーの「未探索は見せない」を保ちつつ、探索済みの深度では絵を見せる
+## （ノード配置はCANVAS_SIZEいっぱいに広がる前提なので、テクスチャ座標=盤面座標のまま使える）。
+## Draws only the revealed nodes' Y-range slice of the background illustration on top of the
+## black base, so unexplored depths stay hidden while explored ones show the art (node layout
+## always fills CANVAS_SIZE, so texture coordinates line up 1:1 with board coordinates).
+func _draw_background_band(revealed: Dictionary) -> void:
+	if background_texture == null or revealed.is_empty():
+		return
+
+	var min_y := INF
+	var max_y := -INF
+	for id in revealed.keys():
+		if not node_positions.has(id):
+			continue
+		var y: float = node_positions[id].y
+		min_y = min(min_y, y)
+		max_y = max(max_y, y)
+	if min_y == INF:
+		return
+
+	min_y = clamp(min_y - BACKGROUND_BAND_PADDING, 0.0, CANVAS_SIZE.y)
+	max_y = clamp(max_y + BACKGROUND_BAND_PADDING, 0.0, CANVAS_SIZE.y)
+	var band := Rect2(0.0, min_y, CANVAS_SIZE.x, max_y - min_y)
+	draw_texture_rect_region(background_texture, band, band)
+
+
 func _draw() -> void:
 	if map_graph == null:
 		return
@@ -147,6 +195,8 @@ func _draw() -> void:
 	if current_player != null:
 		for id in map_graph.get_nodes_within_hops(current_player.current_node_id, vision_radius):
 			revealed[id] = true
+
+	_draw_background_band(revealed)
 
 	for node in map_graph.get_all_nodes():
 		var n: MapNodeDef = node

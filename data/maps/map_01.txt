@@ -1,4 +1,4 @@
-#persist_tiles=true
+#persist_tiles=true background=イラスト32.png
 S
 
 n

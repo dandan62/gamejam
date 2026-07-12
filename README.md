@@ -31,7 +31,7 @@ deep_abiss/
     relics/tierN/*.tres
   scenes/
     Main.gd                    # root: builds the whole UI tree, wires TurnManager signals
-    Board.gd                   # draws the map graph + tokens, handles tile clicks
+    Board.gd                   # draws the map graph + tokens, handles tile clicks (CANVAS_SIZE = 560x1900)
     ui/
       HUD.gd, SegmentGauge.gd  # per-player HP/Light/Action gauges + carried-treasure icons
       DiceUI.gd, Dice3D.gd     # roll button + 3D dice visual + a tile-type legend below the dice
@@ -132,6 +132,11 @@ Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
   itself. On a human turn it waits for the UI to call back into `roll_dice()` / `choose_path()` /
   `choose_tile_action()` / `choose_event()`; on a CPU turn it calls those same functions itself right
   after entering each state.
+- **`Board`** lays tiles out to always fill its fixed `CANVAS_SIZE` (560×1900): lane/depth spacing is
+  derived from the loaded map's own max lane count and max depth, so the tile grid stretches to fit
+  that canvas regardless of the map. A background illustration authored at the same 560:1900 aspect
+  ratio (or a multiple of it, e.g. 1120×3800) will always line up with the tiles, no matter which map
+  is loaded.
 - **`MapGraph`** builds forward/backward adjacency from a `MapDefinition`'s flat node list (backward
   edges are derived automatically from everyone's `forward_connections`). It also tracks which
   `BRIDGE` tiles have been destroyed (`break_bridge`/`is_bridge_broken`) and filters them out of every
@@ -152,13 +157,15 @@ Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
 
 Parsed by `MapTextLoader.gd`. If the file's very first line starts with `#`, it's an **option
 line** instead of a tile line — space-separated `key=value` tokens, consumed before any depth
-parsing starts. Currently the only recognized key is:
+parsing starts. Recognized keys:
 
 | Option | Effect |
 |---|---|
 | `persist_tiles=true` | `TREASURE`/`RELIC` tiles on this map never become `EMPTY` after being picked up. Instead, the instant one is taken its contents are re-rolled from the same tier on the spot, so the tile stays pickable forever but with a **different item each time** rather than the same one repeating. Omit the option line entirely (or leave it `false`) for the original one-time-only behavior. |
+| `background=file` | Uses `data/maps/file` as `Board`'s background illustration (no spaces in the filename). Author it at `Board.CANVAS_SIZE` (560×1900, or a multiple of that ratio) — tile spacing always stretches to fill that canvas (see `Board._compute_positions`), so it lines up regardless of the map. Only the Y-range of currently revealed tiles is drawn (plus `Board.BACKGROUND_BAND_PADDING`), so fog of war still hides unexplored depths — everywhere else stays solid black. Omit it for no background (the original solid black). |
 
-e.g. a map starting with `#persist_tiles=true` followed by the normal tile/connector lines.
+e.g. a map starting with `#persist_tiles=true background=イラスト32.png` followed by the normal
+tile/connector lines.
 
 After the option line (if present), a map file alternates **tile lines** and **connector lines**,
 starting and ending on a tile line, one depth per pair:
@@ -216,6 +223,13 @@ are just new `.tres` files created/edited from the Inspector — no code changes
 (`tier1`, `tier2`, ...) is purely for human organization; **what actually controls which pool an item
 falls into is its own `tier` export field**, read by `DataLoader`. Keep the folder and the field in
 sync by convention, but only the field matters at runtime.
+
+Fastest way to add a new treasure/relic/event: copy a starting-point `.tres` from
+**`data/_templates/`** (`treasure_template.tres`, `relic_template.tres`, `event_template.tres`) into
+the right `data/<category>/tierN/` folder and edit it — see `data/_templates/README.md` for a full
+field reference (including what `BuffData`'s `stat`/`duration` integers mean, since `.tres` files
+can't hold comments). That folder is deliberately outside `data/treasures`/`data/events`/`data/relics`
+so `DataLoader` never picks the templates up as real content.
 
 | Resource | Fields | Notes |
 |---|---|---|

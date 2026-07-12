@@ -1,3 +1,5 @@
+res://data/maps/map_01.txt
 res://scenes/Board.gd
-res://scripts/core/TreasureSpawner.gd
 res://scenes/Main.gd
+res://scripts/data_models/MapDefinition.gd
+res://scripts/map/MapTextLoader.gd
