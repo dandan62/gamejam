@@ -20,6 +20,7 @@ func _clear() -> void:
 func prompt(context: Dictionary) -> void:
 	_clear()
 	var info := Label.new()
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD
 
 	match context.get("kind"):
 		"treasure":

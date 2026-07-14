@@ -30,14 +30,16 @@ deep_abiss/
     events/tierN/*.tres
     relics/tierN/*.tres
   scenes/
-    Main.gd                    # ルート。UIツリー全体を構築し、TurnManagerのシグナルを配線する
+    Main.gd                    # ルート。UIツリー全体を構築し、TurnManagerのシグナルを配線する。画面をマップ側:ステータス側=6:4の横幅比率で分割する。マップ表示(scroll)に重ねる固定オーバーレイも持つ（scrollの外の兄弟ノードとして固定座標に置くことで、盤面をスクロールしても位置がずれない）: turn_countdown_label(残りラウンド警告)、右上のright_overlay列にmap_legend(マス凡例)とその真下のmovement_panel(「残り移動回数」というキャプション付きの正方形パネル、120ptの紫太字で数字表示)
     Board.gd                   # マップのグラフと駒を描画し、マスのクリックを受け付ける（CANVAS_SIZE = 560x1900）
     ui/
-      HUD.gd, SegmentGauge.gd  # プレイヤーごとのHP/ライト/行動力ゲージ＋所持お宝アイコン
-      DiceUI.gd, Dice3D.gd     # ダイスを振るボタン＋3Dダイスの見た目＋ダイス下のマス種別凡例
-      ActionPanel.gd           # 拾う/無視/捨てるの選択UI
-      EventPopup.gd            # イベントの2択UI
+      HUD.gd                   # プレイヤーごとに左側へHP(ハートゲージ)/ライト(電池ゲージ)/Bag行(WeightとBagを統合。重量上限の数だけ空の四角スロットを並べ、アイテムを取得するとそのアイコンでスロットを埋める)、右端に移動回数表示と同じ感覚の大きめ太字でScoreを表示。手番中のプレイヤーの枠はその駒の色で光る。残り移動回数はここでは扱わずMain.gdのmovement_panelで表示する
+      HeartGauge.gd, BatteryGauge.gd  # HPは❤/♡の記号、ライトは電池アイコンを1目盛りにつき1個ずつ左から満タン表示
+      DiceUI.gd, Dice3D.gd     # ダイスを振るボタン＋3Dダイスの見た目。トス演出が終わった(Dice3D.roll_finished)後、移動力の計算過程を「出目→+Bag→=Move」の順に一段ずつ見せてから消し、最終的な移動力だけを残すアニメーション(以前は計算式を即座に一括表示していた)
+      ActionPanel.gd           # 拾う/無視/捨てるの選択UI。説明文はAUTOWRAP_WORDで折り返し、パネル幅が伸びないようにしている
+      EventPopup.gd            # イベントの2択UI。説明文はAUTOWRAP_WORDで折り返し、パネル幅が伸びないようにしている
       GameOverScreen.gd        # 最終順位表示
+      MapLegend.gd             # マップ右上に重ねるマス種別凡例。名前は常時表示、説明はプルダウンで開閉
   scripts/
     autoload/
       GameManager.gd           # シングルトン。プレイヤー一覧・手番・ラウンド数・マップ/スポナー参照
@@ -48,7 +50,7 @@ deep_abiss/
       TierSelector.gd          # 深度→tierの帯域マッピング
       TreasureSpawner.gd       # ゲーム開始時、マスごとにお宝/遺物の中身を1回だけ抽選する
       StatIcons.gd             # HP/ライト/スコア等のバフ表示用ラベル＋アイコン文字列
-      TileIcons.gd             # マス種別ごとの色・ラベル・説明。Boardとダイス下の凡例が共有
+      TileIcons.gd             # マス種別ごとの色・ラベル・説明。BoardとMapLegendが共有
     map/
       MapGraph.gd              # MapDefinitionから前進/後退の隣接情報（ランタイムグラフ）を構築
       MapTextLoader.gd         # data/maps/*.txt を解析してMapDefinitionを作る
@@ -132,10 +134,26 @@ deep_abiss/
   `Main.gd` はそれを受け取ってUIを更新するだけで、ゲームロジック自体は持ちません。人間の手番では
   UI側からの `roll_dice()` / `choose_path()` / `choose_tile_action()` / `choose_event()` 呼び出しを
   待ち、CPUの手番では各ステートに入った直後にこれらの関数を自分で呼び出します。
+- マス上でのアクション（`TREASURE`/`RELIC`の取得可否、`BRIDGE`の破壊可否）待ちの間も、
+  `TurnManager`は次の一歩で進める候補マスを先出しでハイライトしています（`_emit_skip_candidates`）。
+  `ActionPanel`の「Ignore」/「Leave It」ボタンを押す代わりに、そのハイライトされたマスを直接
+  クリックすると「無視」を選んだものとして扱われ、そのままそのマスへ進みます
+  （`TurnManager.handle_board_click`）。`EVENT`マスには無視の選択肢が無いため候補は
+  ハイライトされず、ポップアップの2択のどちらかを必ず選ばないと先に進めません。
 - **`Board`** は常に固定の `CANVAS_SIZE`（560×1900）いっぱいにマスを配置します。読み込んだマップの
   最大レーン数・最大深度からレーン間隔／深度間隔を逆算しているため、マップが変わってもマス全体が
   必ずこのキャンバスに収まるよう伸縮します。背景イラストを同じ560:1900の比率（またはその倍率、
   例：1120×3800）で作れば、どのマップを読み込んでもマス配置と必ず一致します。
+- フォグ・オブ・ウォー(`Board._draw`)：現在の手番プレイヤーから`vision_radius`ホップ以内のマスに
+  加え、スタート地点の深度0の層は視界に関わらず常に見えます。道は、見えているマス同士の間だけで
+  なく、見えているマスから伸びている先（まだ未探索の暗闇でも）まで描画します。背景イラストの
+  照らし方は2種類：`START_LIGHT_TOP_OFFSET`の位置からスタート地点にかけては上ほど明るい縦
+  グラデーション(`_draw_start_light_gradient`。オフセットより上のキャンバス最上部は常に全開の
+  明るさで表示し、スタート地点を過ぎて`BACKGROUND_REVEAL_OUTER_RADIUS`あたりでフェードアウト)、
+  それ以外の見えて
+  いる各マスはテクスチャ付きポリゴンの頂点カラー(アルファ)を補間させた円形の柔らかいパッチ
+  (`_draw_reveal_patch`、四角く切り抜かれず滑らかに丸くぼける)で照らします。そのため、既に
+  探索済みの深度でも見えていないレーン(未探索の分岐など)は暗闇のまま残ります。
 - **`MapGraph`** は `MapDefinition` の（フラットな）ノード一覧から前進/後退の隣接情報を構築します
   （後退側のエッジは、全ノードの `forward_connections` から自動的に逆算されます）。破壊済みの
   `BRIDGE` マスも保持しており（`break_bridge`/`is_bridge_broken`）、`get_forward_ids`/
@@ -210,9 +228,9 @@ ehhtt
 
 新しいマップを追加するには `data/maps/任意の名前.txt` を置くだけです。`DataLoader` はそのフォルダ
 直下の `.txt` を全て自動で読み込みます。`GameManager.start_new_game(map_name)` はファイル名（拡張子
-なし）でマップを引きます。引数なしで呼んだ場合（通常のゲーム開始時）は最初に読み込まれたマップが
-使われるだけなので、複数のマップファイルを置く場合は、特定のマップを使いたければ名前を明示的に
-渡す必要があります。
+なし）でマップを引きます。どの名前を渡すかは `Main.gd` が面倒を見ます：マップが1つしか無ければ
+即座にそれで開始し、2つ以上あれば起動時に「Choose a Map」のボタン一覧を表示して
+（`Main._show_map_select`）、プレイヤーがクリックしたものを使って開始します（`Main._start_game`）。
 
 ## コンテンツの作り方（`data/*/tierN/*.tres`）
 

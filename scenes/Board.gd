@@ -4,14 +4,25 @@ class_name Board
 ## マップのノード・エッジ・プレイヤー駒を描画する盤面。
 ## ハイライトされている(=現在選択可能な)ノードはクリックで選択できる。
 ## 盤面全体は黒で覆われており、現在の手番プレイヤーの現在地からvision_radiusホップ以内
-## （set_vision_radiusで設定）のマスだけが見える（フォグ・オブ・ウォー）。
+## （set_vision_radiusで設定）のマスだけが見える（フォグ・オブ・ウォー）。加えて、
+## スタート地点の層(depth 0)は視界に関わらず常に見える。道は見えているマスと見えている
+## マスの間だけでなく、見えているマスから伸びている先(未探索でも)まで描画する。
+## 背景イラストは、キャンバス最上部からスタート地点にかけては上ほど明るい縦グラデーションで、
+## それ以外の見えているマスは円形パッチ(端はグラデーションでぼかし、四角く切り抜かれた
+## ようにならない)で照らすため、同じ層(同じ深度)でも見えていないレーンのマスは暗闇のまま残る。
 ## マス間の間隔はCANVAS_SIZE固定サイズいっぱいに広がるよう、そのマップの最大レーン数/深度から
 ## 逆算する（背景イラストをCANVAS_SIZEの比率で作れば、マップが変わっても常にマス配置が
 ## 背景に合う）。
 ## Draws the map's nodes, edges, and player tokens.
 ## Highlighted (= currently selectable) nodes can be chosen by clicking them.
 ## The whole board is covered in black; only tiles within vision_radius hops of the current
-## turn's player position (set via set_vision_radius) are revealed (fog of war).
+## turn's player position (set via set_vision_radius) are revealed (fog of war). On top of
+## that, the start's layer (depth 0) is always visible regardless of vision range. Paths are
+## drawn out from any revealed tile to wherever they lead, even into still-unexplored darkness,
+## not just between two revealed tiles. The background illustration is lit with a vertical
+## gradient (brightest at the top) from the canvas top down to the start, and with a soft
+## feathered circular patch around every other revealed tile, so an unrevealed lane at an
+## already-explored depth stays dark rather than getting exposed as a hard-edged square.
 ## Tile spacing is derived from the map's own max lane count/depth so nodes always spread out to
 ## fill the fixed CANVAS_SIZE (an illustration authored at CANVAS_SIZE's aspect ratio will line up
 ## with the tile layout no matter which map is loaded).
@@ -29,7 +40,26 @@ var background_texture: Texture2D = null
 const NODE_RADIUS := 18.0
 const MARGIN := 60.0
 const CANVAS_SIZE := Vector2(560, 1900)
-const BACKGROUND_BAND_PADDING := 80.0
+
+## 見えている各マスの周囲を照らす円形パッチの半径。中心(core)はそのまま完全に見え、
+## coreからouterにかけてアルファがなだらかに落ちていく（四角い切り抜きにならないように）。
+## Radius of the circular patch that lights up each individually-revealed tile. Fully clear
+## inside the core radius, fading smoothly out to fully dark at the outer radius (so the
+## revealed area is a soft circle, not a hard-edged square).
+const BACKGROUND_REVEAL_OUTER_RADIUS := 150.0
+const BACKGROUND_REVEAL_CORE_RADIUS := 70.0
+const BACKGROUND_REVEAL_SEGMENTS := 24
+
+## スタート地点までの上部を照らす縦グラデーションの分割数（多いほど滑らか）。
+## Number of horizontal strips used for the top-to-start vertical light gradient (more = smoother).
+const START_LIGHT_STEPS := 40
+
+## 縦グラデーションの開始地点(一番明るい点)をキャンバス最上部(y=0)からこの分だけ下にずらす
+## （最上部は掘り始める前の岩盤のような扱いにして、光が差し込む起点をスタート寄りにする）。
+## Shifts the vertical gradient's starting point (its brightest point) down from the canvas top
+## (y=0) by this much (the very top reads as undug rock, and the light shaft begins closer to
+## the start).
+const START_LIGHT_TOP_OFFSET := 150.0
 
 ## 残りラウンドがこの数以下になると盤面の枠が赤く点滅する
 ## （ゲームが突然終わるのをプレイヤーに事前に知らせるため）。
@@ -157,31 +187,95 @@ func _treasure_color_for_value(value: int) -> Color:
 	return TREASURE_COLOR_LIGHT.lerp(TREASURE_COLOR_DARK, t)
 
 
-## 背景イラストのうち、見えている範囲(revealed)のノードのY座標帯だけを黒地の上に描画する。
-## フォグ・オブ・ウォーの「未探索は見せない」を保ちつつ、探索済みの深度では絵を見せる
-## （ノード配置はCANVAS_SIZEいっぱいに広がる前提なので、テクスチャ座標=盤面座標のまま使える）。
-## Draws only the revealed nodes' Y-range slice of the background illustration on top of the
-## black base, so unexplored depths stay hidden while explored ones show the art (node layout
-## always fills CANVAS_SIZE, so texture coordinates line up 1:1 with board coordinates).
+## 背景イラストのうち、①スタート地点までの上部（縦グラデーションで明るく）と
+## ②見えている各マスの周囲（円形パッチ、端はグラデーションでぼかす）だけを黒地の上に描画する。
+## depth 0のマスは①でまとめて照らされるので、②の円形パッチは重複を避けるためスキップする。
+## Draws only two things on top of the black base: (1) the area from the canvas top down to the
+## start, lit with a vertical gradient, and (2) a soft circular patch around each other
+## individually-revealed tile (feathered at the edge). depth-0 tiles are already lit by (1), so
+## they're skipped in (2) to avoid a redundant hard overlap.
 func _draw_background_band(revealed: Dictionary) -> void:
-	if background_texture == null or revealed.is_empty():
+	if background_texture == null:
 		return
 
-	var min_y := INF
-	var max_y := -INF
+	_draw_start_light_gradient()
+
 	for id in revealed.keys():
+		var n: MapNodeDef = map_graph.get_node(id)
+		if n != null and n.depth == 0:
+			continue
 		if not node_positions.has(id):
 			continue
-		var y: float = node_positions[id].y
-		min_y = min(min_y, y)
-		max_y = max(max_y, y)
-	if min_y == INF:
+		_draw_reveal_patch(node_positions[id])
+
+
+## キャンバス最上部は常に全開で明るく見せ、START_LIGHT_TOP_OFFSETの位置からスタート地点に
+## かけては上ほど明るい縦グラデーションで背景を見せる（スタート地点だけでなく、そこに至る
+## までの通路の上部も光が差し込んでいるように見せる）。
+## The very top of the canvas is always shown at full brightness, and the area from
+## START_LIGHT_TOP_OFFSET down to the start is lit with a vertical gradient (brightest at its
+## top), so the surface above the start reads as sunlit, not just the start tile itself.
+func _draw_start_light_gradient() -> void:
+	var start_id: int = map_graph.definition.start_node_id
+	if not node_positions.has(start_id):
+		return
+	var start_y: float = node_positions[start_id].y
+	var band_top: float = clamp(START_LIGHT_TOP_OFFSET, 0.0, CANVAS_SIZE.y)
+	var band_bottom: float = clamp(start_y + BACKGROUND_REVEAL_OUTER_RADIUS, band_top, CANVAS_SIZE.y)
+
+	if band_top > 0.0:
+		var top_rect := Rect2(0.0, 0.0, CANVAS_SIZE.x, band_top)
+		draw_texture_rect_region(background_texture, top_rect, top_rect)
+
+	if band_bottom <= band_top:
 		return
 
-	min_y = clamp(min_y - BACKGROUND_BAND_PADDING, 0.0, CANVAS_SIZE.y)
-	max_y = clamp(max_y + BACKGROUND_BAND_PADDING, 0.0, CANVAS_SIZE.y)
-	var band := Rect2(0.0, min_y, CANVAS_SIZE.x, max_y - min_y)
-	draw_texture_rect_region(background_texture, band, band)
+	for i in range(START_LIGHT_STEPS):
+		var t0 := float(i) / float(START_LIGHT_STEPS)
+		var t1 := float(i + 1) / float(START_LIGHT_STEPS)
+		var y0: float = lerp(band_top, band_bottom, t0)
+		var y1: float = lerp(band_top, band_bottom, t1)
+		var alpha := 1.0 - t0
+		var strip := Rect2(0.0, y0, CANVAS_SIZE.x, y1 - y0)
+		draw_texture_rect_region(background_texture, strip, strip, Color(1, 1, 1, alpha))
+
+
+## posを中心に、coreの半径までは完全に見せ、outerの半径にかけてアルファを滑らかに0まで
+## 落とす円形パッチを描く。四角いdraw_texture_rect_regionではなく、テクスチャ付きポリゴンの
+## 頂点カラー(アルファ)を補間させることで丸く柔らかいエッジを作る。
+## Draws a circular patch centered on pos: fully visible out to the core radius, then its alpha
+## smoothly fades to 0 by the outer radius. Uses textured polygons with per-vertex alpha
+## (interpolated by the renderer) instead of a plain rect, so the edge comes out round and soft
+## rather than a hard square.
+func _draw_reveal_patch(pos: Vector2) -> void:
+	var tex_size: Vector2 = background_texture.get_size()
+
+	var inner_points := PackedVector2Array()
+	var inner_uvs := PackedVector2Array()
+	var inner_colors := PackedColorArray()
+	for i in range(BACKGROUND_REVEAL_SEGMENTS):
+		var angle := TAU * i / BACKGROUND_REVEAL_SEGMENTS
+		var p := pos + Vector2(cos(angle), sin(angle)) * BACKGROUND_REVEAL_CORE_RADIUS
+		inner_points.append(p)
+		inner_uvs.append(p / tex_size)
+		inner_colors.append(Color(1, 1, 1, 1))
+	draw_polygon(inner_points, inner_colors, inner_uvs, background_texture)
+
+	for i in range(BACKGROUND_REVEAL_SEGMENTS):
+		var a0 := TAU * i / BACKGROUND_REVEAL_SEGMENTS
+		var a1 := TAU * (i + 1) / BACKGROUND_REVEAL_SEGMENTS
+		var dir0 := Vector2(cos(a0), sin(a0))
+		var dir1 := Vector2(cos(a1), sin(a1))
+		var inner0 := pos + dir0 * BACKGROUND_REVEAL_CORE_RADIUS
+		var inner1 := pos + dir1 * BACKGROUND_REVEAL_CORE_RADIUS
+		var outer0 := pos + dir0 * BACKGROUND_REVEAL_OUTER_RADIUS
+		var outer1 := pos + dir1 * BACKGROUND_REVEAL_OUTER_RADIUS
+		var quad_points := PackedVector2Array([inner0, inner1, outer1, outer0])
+		var quad_uvs := PackedVector2Array([inner0 / tex_size, inner1 / tex_size, outer1 / tex_size, outer0 / tex_size])
+		var quad_colors := PackedColorArray([
+			Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 1, 1, 0), Color(1, 1, 1, 0),
+		])
+		draw_polygon(quad_points, quad_colors, quad_uvs, background_texture)
 
 
 func _draw() -> void:
@@ -196,15 +290,27 @@ func _draw() -> void:
 		for id in map_graph.get_nodes_within_hops(current_player.current_node_id, vision_radius):
 			revealed[id] = true
 
+	## スタート地点の層(depth 0)は視界に関わらず常に見える。
+	## The start's layer (depth 0) is always visible regardless of vision range.
+	for node in map_graph.get_all_nodes():
+		var start_layer_node: MapNodeDef = node
+		if start_layer_node.depth == 0:
+			revealed[start_layer_node.id] = true
+
 	_draw_background_band(revealed)
 
+	## 道は「見えているマスまで」ではなく「見えているマスにつながっている先」まで見せる
+	## （片方の端が見えていれば、その先が未探索の暗闇でも道自体は描く）。
+	## Paths are drawn out to whatever a revealed tile connects to, not just between two
+	## revealed tiles (if either endpoint is revealed, the path itself is drawn even when it
+	## leads into still-unexplored darkness).
 	for node in map_graph.get_all_nodes():
 		var n: MapNodeDef = node
-		if not revealed.has(n.id):
-			continue
 		var from_pos: Vector2 = node_positions[n.id]
 		for next_id in n.forward_connections:
-			if revealed.has(next_id) and node_positions.has(next_id):
+			if not node_positions.has(next_id):
+				continue
+			if revealed.has(n.id) or revealed.has(next_id):
 				draw_line(from_pos, node_positions[next_id], Color(0.4, 0.4, 0.45), 3.0)
 
 	for node in map_graph.get_all_nodes():

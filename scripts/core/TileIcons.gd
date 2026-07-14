@@ -1,10 +1,10 @@
 extends RefCounted
 class_name TileIcons
 
-## マス種別ごとの色・ラベル・役割説明を一箇所にまとめる。Boardの盤面描画とDiceUIの
+## マス種別ごとの色・ラベル・役割説明を一箇所にまとめる。Boardの盤面描画とMapLegendの
 ## 凡例表示の両方がここを参照することで、表示がずれないようにする。
 ## Centralizes each tile type's color, label, and role description in one place, so
-## Board's board rendering and DiceUI's legend both stay in sync.
+## Board's board rendering and MapLegend's legend both stay in sync.
 
 const START_COLOR := Color(0.85, 0.85, 0.9)
 const EMPTY_COLOR := Color(0.6, 0.6, 0.65)

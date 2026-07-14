@@ -1,5 +1,8 @@
 extends Control
 
+const MARGIN := 20.0
+const GAP := 20.0
+
 var turn_manager: TurnManager
 var board: Board
 var hud: HUD
@@ -9,14 +12,63 @@ var event_popup: EventPopup
 var game_over_screen: GameOverScreen
 var round_label: Label
 var turn_countdown_label: Label
+var movement_label: Label
+var movement_panel: PanelContainer
+var map_legend: MapLegend
+var map_select_panel: PanelContainer
 
 
+## マップが2つ以上あるときだけ、開始前にマップ選択画面を出す。1つしか無ければ従来通り
+## 即座にそれで始める。
+## Only shows a map-select screen up front when 2+ maps exist. With just one, starts it
+## immediately as before.
 func _ready() -> void:
-	GameManager.start_new_game()
+	var map_names: Array = DataLoader.maps.keys()
+	if map_names.size() <= 1:
+		_start_game(DataLoader.get_first_map().map_name if not map_names.is_empty() else "")
+	else:
+		_show_map_select(map_names)
+
+
+func _show_map_select(map_names: Array) -> void:
+	map_select_panel = PanelContainer.new()
+	map_select_panel.position = Vector2(500, 300)
+	map_select_panel.size = Vector2(400, 300)
+	add_child(map_select_panel)
+
+	var vbox := VBoxContainer.new()
+	map_select_panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Choose a Map"
+	vbox.add_child(title)
+
+	for map_name in map_names:
+		var btn := Button.new()
+		btn.text = map_name
+		btn.pressed.connect(func(): _start_game(map_name))
+		vbox.add_child(btn)
+
+
+func _start_game(map_name: String) -> void:
+	if map_select_panel != null:
+		map_select_panel.queue_free()
+		map_select_panel = null
+
+	GameManager.start_new_game(map_name)
+
+	## マップ側とステータス側の横幅を6:4の比率で割り振る
+	## （左右マージン20px・間のギャップ20pxを引いた残りを6:4で分ける）。
+	## Splits the width between the map area and the status area at a 6:4 ratio
+	## (after subtracting the 20px side margins and the 20px gap between them).
+	var available_width := 1600.0 - MARGIN * 2.0 - GAP
+	var map_width := available_width * 0.6
+	var status_width := available_width - map_width
+	var status_x := MARGIN + map_width + GAP
 
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(20, 20)
-	scroll.size = Vector2(760, 900)
+	scroll.position = Vector2(MARGIN, 20)
+	scroll.size = Vector2(map_width, 900)
 	add_child(scroll)
 
 	board = Board.new()
@@ -31,8 +83,8 @@ func _ready() -> void:
 	## same coordinates rather than a child of scroll, so it doesn't move when the board scrolls.
 	turn_countdown_label = Label.new()
 	add_child(turn_countdown_label)
-	turn_countdown_label.position = Vector2(20, 20)
-	turn_countdown_label.size = Vector2(760, 40)
+	turn_countdown_label.position = Vector2(MARGIN, 20)
+	turn_countdown_label.size = Vector2(map_width, 40)
 	turn_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	turn_countdown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	turn_countdown_label.add_theme_font_size_override("font_size", 28)
@@ -40,13 +92,61 @@ func _ready() -> void:
 	turn_countdown_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	turn_countdown_label.add_theme_constant_override("outline_size", 6)
 
+	## マップ(scroll)の右上に重ねて表示するマス凡例＋その下の残り移動回数パネル。
+	## turn_countdown_labelと同じく、scrollの外の兄弟ノード(right_overlay)を固定座標に
+	## 置くことで、盤面をスクロールしても位置がずれない。VBoxContainerで縦に並べているので、
+	## マス凡例がプルダウンで開閉して高さが変わっても、移動回数パネルは常にその真下に来る。
+	## turn_countdown_labelの帯(y=20〜60)とは重ならないよう、その下から始める。
+	## Tile legend + the remaining-move-count panel below it, overlaid at the map's top-right
+	## corner. Same trick as turn_countdown_label -- a sibling (right_overlay) positioned at a
+	## fixed coordinate outside scroll, so it doesn't move when the board scrolls. Stacked in a
+	## VBoxContainer so the movement panel always sits directly below the legend even as the
+	## legend's pulldown changes its height. Starts below turn_countdown_label's band (y=20-60)
+	## so they don't overlap.
+	var right_overlay := VBoxContainer.new()
+	add_child(right_overlay)
+	right_overlay.position = Vector2(MARGIN + map_width - MapLegend.PANEL_WIDTH, 65)
+	right_overlay.add_theme_constant_override("separation", 10)
+
+	map_legend = MapLegend.new()
+	right_overlay.add_child(map_legend)
+
+	movement_panel = PanelContainer.new()
+	movement_panel.custom_minimum_size = Vector2(MapLegend.PANEL_WIDTH, MapLegend.PANEL_WIDTH)
+	right_overlay.add_child(movement_panel)
+	var movement_panel_style := StyleBoxFlat.new()
+	movement_panel_style.bg_color = Color(0.1, 0.1, 0.12, 0.85)
+	movement_panel_style.border_color = Color(0.55, 0.15, 0.8)
+	movement_panel_style.set_border_width_all(3)
+	movement_panel.add_theme_stylebox_override("panel", movement_panel_style)
+
+	var movement_vbox := VBoxContainer.new()
+	movement_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	movement_panel.add_child(movement_vbox)
+
+	var movement_title := Label.new()
+	movement_title.text = "残り移動回数"
+	movement_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	movement_vbox.add_child(movement_title)
+
+	movement_label = Label.new()
+	movement_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var movement_font := SystemFont.new()
+	movement_font.font_weight = 700
+	movement_label.add_theme_font_override("font", movement_font)
+	movement_label.add_theme_font_size_override("font_size", 120)
+	movement_label.add_theme_color_override("font_color", Color(0.55, 0.15, 0.8))
+	movement_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	movement_label.add_theme_constant_override("outline_size", 6)
+	movement_vbox.add_child(movement_label)
+
 	var side_scroll := ScrollContainer.new()
-	side_scroll.position = Vector2(800, 20)
-	side_scroll.size = Vector2(780, 900)
+	side_scroll.position = Vector2(status_x, 20)
+	side_scroll.size = Vector2(status_width, 900)
 	add_child(side_scroll)
 
 	var side_panel := VBoxContainer.new()
-	side_panel.custom_minimum_size = Vector2(760, 0)
+	side_panel.custom_minimum_size = Vector2(status_width - 20.0, 0)
 	side_scroll.add_child(side_panel)
 
 	hud = HUD.new()
@@ -109,7 +209,8 @@ func _close_all_prompts() -> void:
 
 func _on_turn_started(player: PlayerState) -> void:
 	dice_ui.set_enabled(not player.is_cpu)
-	hud.set_movement(player, 0, 0)
+	hud.set_active_player(player.id)
+	movement_label.text = ""
 	_close_all_prompts()
 	_refresh_all()
 	_update_turn_countdown()
@@ -147,8 +248,8 @@ func _on_vision_changed(radius: int) -> void:
 	board.set_vision_radius(radius)
 
 
-func _on_movement_changed(player: PlayerState, remaining: int, total: int) -> void:
-	hud.set_movement(player, remaining, total)
+func _on_movement_changed(_player: PlayerState, remaining: int, _total: int) -> void:
+	movement_label.text = str(remaining)
 	_refresh_all()
 
 
@@ -157,7 +258,8 @@ func _on_path_choices_ready(_player: PlayerState, forward_ids: Array, backward_i
 
 
 func _on_board_node_clicked(node_id: int) -> void:
-	turn_manager.choose_path(node_id)
+	action_panel.close()
+	turn_manager.handle_board_click(node_id)
 
 
 func _on_player_moved(_player: PlayerState, _node_id: int) -> void:
@@ -199,5 +301,7 @@ func _on_turn_ended(_player: PlayerState) -> void:
 
 func _on_game_over(ranking: Array) -> void:
 	board.set_vision_radius(0)
+	movement_label.text = ""
+	hud.set_active_player(-1)
 	_refresh_all()
 	game_over_screen.show_ranking(ranking)

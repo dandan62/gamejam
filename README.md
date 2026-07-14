@@ -30,14 +30,16 @@ deep_abiss/
     events/tierN/*.tres
     relics/tierN/*.tres
   scenes/
-    Main.gd                    # root: builds the whole UI tree, wires TurnManager signals
+    Main.gd                    # root: builds the whole UI tree, wires TurnManager signals. Splits the screen into a map area and a status area at a 6:4 width ratio. Also owns fixed overlays pinned to the map viewport (siblings positioned at fixed coords outside the ScrollContainer, so they don't move when the board scrolls): turn_countdown_label (round-limit warning), and a top-right right_overlay column holding map_legend (tile-type legend) directly above movement_panel (a square panel captioned "残り移動回数" with the remaining move count in 120pt bold purple text)
     Board.gd                   # draws the map graph + tokens, handles tile clicks (CANVAS_SIZE = 560x1900)
     ui/
-      HUD.gd, SegmentGauge.gd  # per-player HP/Light/Action gauges + carried-treasure icons
-      DiceUI.gd, Dice3D.gd     # roll button + 3D dice visual + a tile-type legend below the dice
-      ActionPanel.gd           # pick up / ignore / discard prompt
-      EventPopup.gd            # 2-choice event prompt
+      HUD.gd                   # per-player HP (heart gauge)/Light (battery gauge)/Bag (Weight and Bag are unified: one empty square slot per point of weight capacity, filled with the actual item icon as things are picked up) on the left, Score as a large bold number pinned to the right edge (same big-text feel as the remaining-move-count display); active player's panel glows in their token color. Remaining moves aren't shown here -- see Main.gd's movement_panel
+      HeartGauge.gd, BatteryGauge.gd  # HP as ❤/♡ glyphs; Light as a row of individual battery icons (one per point, filled left-to-right)
+      DiceUI.gd, Dice3D.gd     # roll button + 3D dice visual. Once the toss settles (Dice3D.roll_finished), the movement math is revealed step by step ("die roll" -> "+ Bag" -> "= Move") then cleared down to just the final movement value, instead of dumping the whole equation instantly
+      ActionPanel.gd           # pick up / ignore / discard prompt; description text wraps (AUTOWRAP_WORD) instead of stretching the panel wider
+      EventPopup.gd            # 2-choice event prompt; description text wraps (AUTOWRAP_WORD) instead of stretching the panel wider
       GameOverScreen.gd        # final ranking
+      MapLegend.gd             # tile-type legend overlaid at the map's top-right; names always shown, descriptions pull down
   scripts/
     autoload/
       GameManager.gd           # singleton: player list, turn order, round number, map/spawner refs
@@ -48,7 +50,7 @@ deep_abiss/
       TierSelector.gd          # depth -> tier band lookup
       TreasureSpawner.gd       # rolls treasure/relic contents once per game, per tile
       StatIcons.gd             # label+icon strings for HP/Light/Score/etc buff display
-      TileIcons.gd             # color/label/description per tile type, shared by Board + the dice legend
+      TileIcons.gd             # color/label/description per tile type, shared by Board + MapLegend
     map/
       MapGraph.gd              # runtime adjacency (forward/backward) built from a MapDefinition
       MapTextLoader.gd         # parses data/maps/*.txt into a MapDefinition
@@ -132,11 +134,28 @@ Final ranking is `banked_score` descending (`GameManager.get_ranking()`).
   itself. On a human turn it waits for the UI to call back into `roll_dice()` / `choose_path()` /
   `choose_tile_action()` / `choose_event()`; on a CPU turn it calls those same functions itself right
   after entering each state.
+- While a tile action prompt is up (`TREASURE`/`RELIC`/`RELIC pick-up? / BRIDGE`), `TurnManager` also
+  pre-highlights the next step's candidate tiles (`_emit_skip_candidates`). Clicking one of those
+  highlighted tiles directly — instead of pressing "Ignore"/"Leave It" in the `ActionPanel` — is
+  treated as choosing "ignore" and then immediately continues onto that tile
+  (`TurnManager.handle_board_click`). `EVENT` tiles have no ignore option, so nothing is
+  pre-highlighted for them and a player must pick one of the two choices in the popup to proceed.
 - **`Board`** lays tiles out to always fill its fixed `CANVAS_SIZE` (560×1900): lane/depth spacing is
   derived from the loaded map's own max lane count and max depth, so the tile grid stretches to fit
   that canvas regardless of the map. A background illustration authored at the same 560:1900 aspect
   ratio (or a multiple of it, e.g. 1120×3800) will always line up with the tiles, no matter which map
   is loaded.
+- Fog of war (`Board._draw`): tiles within `vision_radius` hops of the current player are revealed,
+  plus the start's entire depth-0 layer is always revealed regardless of vision range. Paths are drawn
+  out from any revealed tile to wherever they lead (even into still-dark, unrevealed territory), not
+  only between two already-revealed tiles. The background illustration is lit in two ways: a vertical
+  gradient from `START_LIGHT_TOP_OFFSET` down to the start (`_draw_start_light_gradient`; the canvas
+  top above the offset is always shown at full brightness, then it fades out around
+  `BACKGROUND_REVEAL_OUTER_RADIUS` past the start), and a soft feathered circular patch per other
+  individually-revealed tile
+  (`_draw_reveal_patch`, drawn as textured polygons with per-vertex alpha so the edge is a smooth round
+  falloff rather than a hard-edged square) — so an unrevealed lane at an already-explored depth (e.g.
+  an unexplored branch) stays dark.
 - **`MapGraph`** builds forward/backward adjacency from a `MapDefinition`'s flat node list (backward
   edges are derived automatically from everyone's `forward_connections`). It also tracks which
   `BRIDGE` tiles have been destroyed (`break_bridge`/`is_bridge_broken`) and filters them out of every
@@ -213,8 +232,9 @@ connector lines are blank, so depths 4+ (`tnnht`, `ehhtt`, ...) use auto-connect
 
 To add a new map, just drop a new `data/maps/whatever.txt` file — `DataLoader` picks up every `.txt`
 in that folder automatically. `GameManager.start_new_game(map_name)` looks it up by file basename (no
-extension); calling it with no argument (the normal game start) just grabs whichever map loaded first,
-so with more than one map file present you'll want to pass a name explicitly if you need a specific one.
+extension). `Main.gd` handles picking a name for you: with only one map loaded it starts that one
+immediately; with 2+ maps it shows a "Choose a Map" button list up front (`Main._show_map_select`)
+and starts whichever one the player clicks (`Main._start_game`).
 
 ## Authoring content (`data/*/tierN/*.tres`)　💰　
 

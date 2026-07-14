@@ -12,6 +12,7 @@ func _ready() -> void:
 	var vbox := VBoxContainer.new()
 	add_child(vbox)
 	desc_label = Label.new()
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	vbox.add_child(desc_label)
 	a_button = Button.new()
 	a_button.pressed.connect(func(): choice_made.emit("a"))

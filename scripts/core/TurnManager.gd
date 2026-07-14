@@ -149,6 +149,38 @@ func _advance_one_step() -> void:
 		choose_path(CPUAI.choose_path(map_graph, player, forward_ids, backward_ids))
 
 
+## マスに止まった直後、まだアクション未選択(WAITING_TILE_ACTION)の間でも、次に進める
+## 候補マスを先出しでハイライトしておく。プレイヤーがアクションパネルのボタンを押さず
+## いきなり候補マスをクリックした場合は「無視」を選んだものとして扱い、そのままそのマスへ
+## 進む(handle_board_click参照)。イベントマス(WAITING_EVENT_CHOICE)には無視の選択肢が
+## ないため、ここは呼ばれない＝ハイライトされず、必ず2択のどちらかを選ぶ必要がある。
+## Right after landing on a tile, while still waiting on the action prompt
+## (WAITING_TILE_ACTION), pre-highlight the candidates for the next step. If the player
+## clicks straight on a highlighted tile instead of pressing a panel button, that's treated
+## as choosing "ignore" and movement proceeds onto that tile (see handle_board_click). Event
+## tiles (WAITING_EVENT_CHOICE) have no ignore option, so this is never called for them --
+## nothing gets highlighted, forcing an explicit pick between the two choices.
+func _emit_skip_candidates(player: PlayerState) -> void:
+	if _remaining_steps <= 0:
+		return
+	var map_graph: MapGraph = GameManager.map_graph
+	var forward_ids: Array = map_graph.get_forward_ids(player.current_node_id)
+	var backward_ids: Array = map_graph.get_backward_ids(player.current_node_id)
+	path_choices_ready.emit(player, forward_ids, backward_ids)
+
+
+## 盤面クリックの入り口。アクション未選択中(WAITING_TILE_ACTION)にクリックされたら、
+## まず「無視」を選んだことにしてからそのまま経路選択として処理する。
+## Entry point for board clicks. If clicked while an action is still pending
+## (WAITING_TILE_ACTION), first resolves it as "ignore", then falls through to handle it as
+## the path choice.
+func handle_board_click(node_id: int) -> void:
+	if state == State.WAITING_TILE_ACTION:
+		choose_tile_action("ignore")
+	if state == State.WAITING_STEP:
+		choose_path(node_id)
+
+
 func choose_path(node_id: int) -> void:
 	if state != State.WAITING_STEP:
 		return
@@ -189,6 +221,7 @@ func _resolve_tile(player: PlayerState) -> void:
 				var entry: Dictionary = GameManager.spawner.treasure_by_node[node.id]
 				var data: TreasureData = entry["data"]
 				tile_action_needed.emit(player, node, {"kind": "treasure", "data": data, "value": entry["value"], "can_pick_up": player.can_pick_up(data)})
+				_emit_skip_candidates(player)
 				if player.is_cpu:
 					choose_tile_action(CPUAI.choose_treasure_action(player, data))
 			else:
@@ -198,6 +231,7 @@ func _resolve_tile(player: PlayerState) -> void:
 				state = State.WAITING_TILE_ACTION
 				var relic: RelicData = GameManager.spawner.relic_by_node[node.id]["data"]
 				tile_action_needed.emit(player, node, {"kind": "relic", "data": relic, "can_pick_up": player.can_pick_up_relic(relic)})
+				_emit_skip_candidates(player)
 				if player.is_cpu:
 					choose_tile_action(CPUAI.choose_relic_action(player, relic))
 			else:
@@ -217,6 +251,7 @@ func _resolve_tile(player: PlayerState) -> void:
 		MapNodeDef.TileType.BRIDGE:
 			state = State.WAITING_TILE_ACTION
 			tile_action_needed.emit(player, node, {"kind": "bridge"})
+			_emit_skip_candidates(player)
 			if player.is_cpu:
 				choose_tile_action(CPUAI.choose_bridge_action(player))
 		_:

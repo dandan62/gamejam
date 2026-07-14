@@ -1,39 +1,57 @@
 extends PanelContainer
 class_name HUD
 
-## プレイヤーごとにHP/ライト/行動力(サイコロの出目)をセグメントゲージ＋アイコン
-## (StatIcons参照、"HP"のような文章ではなく❤のようなアイコンで表す)で表示し、
-## 所持お宝をアイコン(未設定なら頭文字のプレースホルダー)で並べて見せるHUD。
-## Per-player HUD showing HP/light/action-points (the dice roll) as segment gauges tagged
-## with icons (see StatIcons -- e.g. ❤ instead of the word "HP"), plus a row of
-## carried-treasure icons (a first-letter placeholder square when no icon texture is set yet).
+## プレイヤーごとの1行は左右2カラム構成: 左にHP(❤/♡のハートゲージ)、ライト(電池型の
+## バッテリーゲージ)、Bag行を積み、右端にScoreを移動回数表示(Main.gdのmovement_panel)と
+## 同じ感覚の大きめ太字数字で表示する。BagはWeightと統合したステータスで、重量上限の
+## 数だけ空の四角を並べ、アイテムを取得したらその分の四角に(既存の_build_treasure_icon/
+## _build_relic_iconと全く同じ見た目の)アイテムアイコンを格納して埋める
+## (weightが2以上のアイテムは、その分の四角を同じアイコンで連続して埋める)。
+## Each player's row is a two-column layout: the left column stacks HP (a heart gauge, ❤/♡),
+## Light (a battery-styled gauge), and the Bag row; the right edge shows Score as a large bold
+## number, matching the feel of the remaining-move-count display (Main.gd's movement_panel).
+## Bag unifies the old Weight stat: it lines up one empty square per point of weight capacity,
+## and picking up an item fills that many squares with the item's icon (same look as
+## _build_treasure_icon/_build_relic_icon -- items with weight >= 2 fill that many consecutive
+## squares with their own icon). Remaining move count isn't shown here at all -- it's on the
+## map (Main.gd's movement_panel).
+
+## Board.player_colorsと同じ配色。プレイヤー順(インデックス)で対応させ、駒の色と
+## アクティブ枠の色が一致するようにする。
+## Same palette as Board.player_colors. Matched by player index so the token color and the
+## active-turn highlight color line up.
+const PLAYER_COLORS := [Color(0.2, 0.75, 0.35), Color(0.25, 0.55, 0.95), Color(0.95, 0.55, 0.15)]
 
 var _vbox: VBoxContainer
+var _panels: Array = []             # Array[PanelContainer]
+var _active_player_id: int = -1
 var _status_labels: Array = []      # Array[Label]
-var _hp_gauges: Array = []          # Array[SegmentGauge]
-var _light_gauges: Array = []       # Array[SegmentGauge]
-var _action_gauges: Array = []      # Array[SegmentGauge]
-var _detail_labels: Array = []      # Array[Label]
-var _treasure_rows: Array = []      # Array[HBoxContainer]
-
-var _movement_by_player: Dictionary = {}  # player.id -> {"remaining": int, "total": int}
+var _hp_gauges: Array = []          # Array[HeartGauge]
+var _light_gauges: Array = []       # Array[BatteryGauge]
+var _score_labels: Array = []       # Array[Label]
+var _bag_rows: Array = []           # Array[HBoxContainer]
 
 
 func setup(players: Array) -> void:
 	_vbox = VBoxContainer.new()
 	add_child(_vbox)
+	_panels.clear()
 	_status_labels.clear()
 	_hp_gauges.clear()
 	_light_gauges.clear()
-	_action_gauges.clear()
-	_detail_labels.clear()
-	_treasure_rows.clear()
+	_score_labels.clear()
+	_bag_rows.clear()
 
 	for _p in players:
 		var panel := PanelContainer.new()
-		var col := VBoxContainer.new()
-		panel.add_child(col)
+		_panels.append(panel)
+		var row := HBoxContainer.new()
+		panel.add_child(row)
 		_vbox.add_child(panel)
+
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(col)
 
 		var status_label := Label.new()
 		col.add_child(status_label)
@@ -45,8 +63,7 @@ func setup(players: Array) -> void:
 		hp_tag.text = StatIcons.tag("HP", StatIcons.HP)
 		hp_tag.custom_minimum_size = Vector2(70, 0)
 		hp_row.add_child(hp_tag)
-		var hp_gauge := SegmentGauge.new()
-		hp_gauge.filled_color = Color(0.85, 0.25, 0.25)
+		var hp_gauge := HeartGauge.new()
 		hp_row.add_child(hp_gauge)
 		_hp_gauges.append(hp_gauge)
 
@@ -56,35 +73,70 @@ func setup(players: Array) -> void:
 		light_tag.text = StatIcons.tag("Light", StatIcons.LIGHT)
 		light_tag.custom_minimum_size = Vector2(70, 0)
 		light_row.add_child(light_tag)
-		var light_gauge := SegmentGauge.new()
-		light_gauge.filled_color = Color(0.3, 0.8, 0.4)
+		var light_gauge := BatteryGauge.new()
 		light_row.add_child(light_gauge)
 		_light_gauges.append(light_gauge)
 
-		var action_row := HBoxContainer.new()
-		col.add_child(action_row)
-		var action_tag := Label.new()
-		action_tag.text = StatIcons.tag("Move", StatIcons.MOVE)
-		action_tag.custom_minimum_size = Vector2(70, 0)
-		action_row.add_child(action_tag)
-		var action_gauge := SegmentGauge.new()
-		action_gauge.filled_color = Color(0.55, 0.35, 0.9)
-		action_row.add_child(action_gauge)
-		_action_gauges.append(action_gauge)
+		var bag_row := HBoxContainer.new()
+		col.add_child(bag_row)
+		var bag_tag := Label.new()
+		bag_tag.text = StatIcons.tag("Bag", StatIcons.TREASURE_COUNT)
+		bag_tag.custom_minimum_size = Vector2(70, 0)
+		bag_row.add_child(bag_tag)
+		var bag_slots := HBoxContainer.new()
+		bag_row.add_child(bag_slots)
+		_bag_rows.append(bag_slots)
 
-		var detail_label := Label.new()
-		col.add_child(detail_label)
-		_detail_labels.append(detail_label)
+		## Scoreはステータス行の右端に、移動回数表示(Main.gdのmovement_panel)と同じ感覚の
+		## 大きめの太字で表示する(HP/Light/Bagの数値行とは別枠で目立たせる)。
+		## Score sits at the right edge of the status row, in large bold text matching the feel
+		## of the remaining-move-count display (Main.gd's movement_panel) -- set apart from the
+		## HP/Light/Bag rows so it stands out.
+		var score_col := VBoxContainer.new()
+		score_col.custom_minimum_size = Vector2(120, 0)
+		row.add_child(score_col)
 
-		var treasure_row := HBoxContainer.new()
-		col.add_child(treasure_row)
-		_treasure_rows.append(treasure_row)
+		var score_tag := Label.new()
+		score_tag.text = StatIcons.tag("Score", StatIcons.SCORE)
+		score_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		score_col.add_child(score_tag)
+
+		var score_label := Label.new()
+		score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var score_font := SystemFont.new()
+		score_font.font_weight = 700
+		score_label.add_theme_font_override("font", score_font)
+		score_label.add_theme_font_size_override("font_size", 48)
+		score_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+		score_label.add_theme_color_override("font_outline_color", Color.BLACK)
+		score_label.add_theme_constant_override("outline_size", 4)
+		score_col.add_child(score_label)
+		_score_labels.append(score_label)
 
 	refresh(players)
 
 
-func set_movement(player: PlayerState, remaining: int, total: int) -> void:
-	_movement_by_player[player.id] = {"remaining": remaining, "total": total}
+## 現在手番のプレイヤーの枠を、そのプレイヤーの色(Board.player_colorsと同じ配色)で
+## 光らせる。誰のターンか一目でわかるようにするため。
+## Lights up the current turn's player panel with that player's color (same palette as
+## Board.player_colors), so it's obvious at a glance whose turn it is.
+func set_active_player(player_id: int) -> void:
+	_active_player_id = player_id
+
+
+func _update_panel_styles(players: Array) -> void:
+	for i in range(players.size()):
+		var p: PlayerState = players[i]
+		if p.id == _active_player_id:
+			var sb := StyleBoxFlat.new()
+			var color: Color = PLAYER_COLORS[i % PLAYER_COLORS.size()]
+			sb.bg_color = Color(color.r, color.g, color.b, 0.18)
+			sb.border_color = color
+			sb.set_border_width_all(4)
+			sb.set_corner_radius_all(6)
+			_panels[i].add_theme_stylebox_override("panel", sb)
+		else:
+			_panels[i].remove_theme_stylebox_override("panel")
 
 
 func refresh(players: Array) -> void:
@@ -98,29 +150,56 @@ func refresh(players: Array) -> void:
 		_status_labels[i].text = "%s [%s]" % [p.display_name, status_text[p.status]]
 		_hp_gauges[i].set_value(p.hp, p.max_hp)
 		_light_gauges[i].set_value(p.light, p.max_light)
+		_score_labels[i].text = str(p.banked_score)
 
-		var mv: Dictionary = _movement_by_player.get(p.id, {"remaining": 0, "total": 0})
-		_action_gauges[i].set_value(mv["remaining"], mv["total"])
+		_refresh_bag_row(_bag_rows[i], p)
 
-		var weight_text := "%d/%d" % [p.get_total_weight(), p.get_weight_capacity()]
-		var bag_count := p.carried_treasures.size() + p.carried_relics.size()
-		_detail_labels[i].text = "%s   %s   %s" % [
-			StatIcons.tag("Weight", StatIcons.WEIGHT, weight_text),
-			StatIcons.tag("Bag", StatIcons.TREASURE_COUNT, str(bag_count)),
-			StatIcons.tag("Score", StatIcons.SCORE, str(p.banked_score)),
-		]
-
-		_refresh_treasure_row(_treasure_rows[i], p)
+	_update_panel_styles(players)
 
 
-func _refresh_treasure_row(row: HBoxContainer, player: PlayerState) -> void:
+## 重量上限の数だけ四角スロットを並べる。所持アイテムは順番にスロットを埋めていき
+## (weightが2以上なら同じアイコンでその分のスロットを連続して埋める)、余ったスロットは
+## 空の四角のまま表示する。
+## Lines up one square slot per point of weight capacity. Carried items fill slots in order
+## (an item with weight >= 2 fills that many consecutive slots with its own icon); any
+## leftover slots stay empty squares.
+func _refresh_bag_row(row: HBoxContainer, player: PlayerState) -> void:
 	for child in row.get_children():
 		child.queue_free()
+
+	var capacity := player.get_weight_capacity()
+	var slots_used := 0
+
 	for entry in player.carried_treasures:
 		var data: TreasureData = entry["data"]
-		row.add_child(_build_treasure_icon(data, int(entry["value"])))
+		var value := int(entry["value"])
+		for _w in range(data.weight):
+			if slots_used >= capacity:
+				break
+			row.add_child(_build_treasure_icon(data, value))
+			slots_used += 1
+
 	for relic in player.carried_relics:
-		row.add_child(_build_relic_icon(relic))
+		var data: RelicData = relic
+		for _w in range(data.weight):
+			if slots_used >= capacity:
+				break
+			row.add_child(_build_relic_icon(data))
+			slots_used += 1
+
+	for _i in range(capacity - slots_used):
+		row.add_child(_build_empty_slot())
+
+
+func _build_empty_slot() -> Control:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = ICON_SIZE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.15, 0.15, 0.18, 0.6)
+	sb.border_color = Color(0.4, 0.4, 0.45)
+	sb.set_border_width_all(1)
+	panel.add_theme_stylebox_override("panel", sb)
+	return panel
 
 
 const ICON_SIZE := Vector2(28, 28)
