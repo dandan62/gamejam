@@ -15,6 +15,13 @@ class_name HUD
 ## _build_treasure_icon/_build_relic_icon -- items with weight >= 2 fill that many consecutive
 ## squares with their own icon). Remaining move count isn't shown here at all -- it's on the
 ## map (Main.gd's movement_panel).
+## 危険な状態は、パネル全体ではなく該当するゲージ自体の外枠の色で伝える(_apply_gauge_frame_danger):
+## HPが1かライトが1ならそのゲージの枠を赤に、HPが2かライトが3以下なら黄色に(赤が優先)。
+## ELIMINATEDになったプレイヤーはパネル全体をmodulateで暗く落とす。
+## A dangerous state is flagged on the specific gauge's own border, not the whole panel
+## (_apply_gauge_frame_danger): that gauge's frame turns red if HP is 1 or Light is 1, yellow if
+## HP is 2 or Light is 3 or less (red wins). An ELIMINATED player has the entire panel darkened
+## via modulate.
 
 ## Board.player_colorsと同じ配色。プレイヤー順(インデックス)で対応させ、駒の色と
 ## アクティブ枠の色が一致するようにする。
@@ -27,7 +34,9 @@ var _panels: Array = []             # Array[PanelContainer]
 var _active_player_id: int = -1
 var _status_labels: Array = []      # Array[Label]
 var _hp_gauges: Array = []          # Array[HeartGauge]
+var _hp_gauge_frames: Array = []    # Array[PanelContainer]
 var _light_gauges: Array = []       # Array[BatteryGauge]
+var _light_gauge_frames: Array = [] # Array[PanelContainer]
 var _score_labels: Array = []       # Array[Label]
 var _bag_rows: Array = []           # Array[HBoxContainer]
 
@@ -38,7 +47,9 @@ func setup(players: Array) -> void:
 	_panels.clear()
 	_status_labels.clear()
 	_hp_gauges.clear()
+	_hp_gauge_frames.clear()
 	_light_gauges.clear()
+	_light_gauge_frames.clear()
 	_score_labels.clear()
 	_bag_rows.clear()
 
@@ -64,8 +75,10 @@ func setup(players: Array) -> void:
 		hp_tag.custom_minimum_size = Vector2(70, 0)
 		hp_row.add_child(hp_tag)
 		var hp_gauge := HeartGauge.new()
-		hp_row.add_child(hp_gauge)
+		var hp_frame := _build_gauge_frame(hp_gauge)
+		hp_row.add_child(hp_frame)
 		_hp_gauges.append(hp_gauge)
+		_hp_gauge_frames.append(hp_frame)
 
 		var light_row := HBoxContainer.new()
 		col.add_child(light_row)
@@ -74,8 +87,10 @@ func setup(players: Array) -> void:
 		light_tag.custom_minimum_size = Vector2(70, 0)
 		light_row.add_child(light_tag)
 		var light_gauge := BatteryGauge.new()
-		light_row.add_child(light_gauge)
+		var light_frame := _build_gauge_frame(light_gauge)
+		light_row.add_child(light_frame)
 		_light_gauges.append(light_gauge)
+		_light_gauge_frames.append(light_frame)
 
 		var bag_row := HBoxContainer.new()
 		col.add_child(bag_row)
@@ -124,19 +139,59 @@ func set_active_player(player_id: int) -> void:
 	_active_player_id = player_id
 
 
+## ゲージ(HeartGauge/BatteryGauge)を、危険度に応じて外枠の色が変わるPanelContainerで包む。
+## Wraps a gauge (HeartGauge/BatteryGauge) in a PanelContainer whose border color changes to
+## flag a dangerous state.
+func _build_gauge_frame(gauge: Control) -> PanelContainer:
+	var frame := PanelContainer.new()
+	frame.add_child(gauge)
+	return frame
+
+
+## HPゲージ・ライトゲージそれぞれの枠に、そのゲージ自身の危険度で色を付ける
+## （HPが危険でもライトの枠は危険でなければ色を付けない、というように個別に判定する）。
+## Colors the HP gauge's and Light gauge's own frames independently, based on each gauge's own
+## danger level (e.g. HP being dangerous doesn't color the Light frame if Light itself is fine).
+func _apply_gauge_frame_danger(frame: PanelContainer, is_dangerous: bool, is_warning: bool) -> void:
+	if not is_dangerous and not is_warning:
+		frame.remove_theme_stylebox_override("panel")
+		return
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.border_color = Color(0.9, 0.2, 0.2, 1.0) if is_dangerous else Color(0.9, 0.8, 0.2, 1.0)
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(4)
+	frame.add_theme_stylebox_override("panel", sb)
+
+
+## 手番ハイライト(枠線)をパネルに反映する。死亡(ELIMINATED)しているプレイヤーはパネル全体を
+## modulateで暗く落とす。
+## Applies the active-turn border highlight to the panel. An ELIMINATED player has the entire
+## panel darkened via modulate.
 func _update_panel_styles(players: Array) -> void:
 	for i in range(players.size()):
 		var p: PlayerState = players[i]
+		var panel: PanelContainer = _panels[i]
+
+		if p.status == PlayerState.Status.ELIMINATED:
+			panel.modulate = Color(0.4, 0.4, 0.4, 1.0)
+			panel.remove_theme_stylebox_override("panel")
+			continue
+		panel.modulate = Color(1, 1, 1, 1)
+
 		if p.id == _active_player_id:
 			var sb := StyleBoxFlat.new()
-			var color: Color = PLAYER_COLORS[i % PLAYER_COLORS.size()]
-			sb.bg_color = Color(color.r, color.g, color.b, 0.18)
-			sb.border_color = color
+			var player_color: Color = PLAYER_COLORS[i % PLAYER_COLORS.size()]
+			sb.bg_color = Color(player_color.r, player_color.g, player_color.b, 0.18)
+			sb.border_color = player_color
 			sb.set_border_width_all(4)
 			sb.set_corner_radius_all(6)
-			_panels[i].add_theme_stylebox_override("panel", sb)
+			panel.add_theme_stylebox_override("panel", sb)
 		else:
-			_panels[i].remove_theme_stylebox_override("panel")
+			panel.remove_theme_stylebox_override("panel")
+
+		_apply_gauge_frame_danger(_hp_gauge_frames[i], p.hp == 1, p.hp == 2)
+		_apply_gauge_frame_danger(_light_gauge_frames[i], p.light == 1, p.light <= 3 and p.light != 1)
 
 
 func refresh(players: Array) -> void:
